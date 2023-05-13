@@ -1,0 +1,230 @@
+total memory: 64kb = 65536b = 256 pages
+
+resolution = 128x128 pixels
+tile size  = 8x8     pixels
+screen     = 16x16   tiles
+
+background tiles = 256b = 1 page
+
+sprites can only have 4 different colors, one of the colors is the transparency color, so in reality are 3 colors that you can use per sprite
+one pixel of a sprite can be represented by two bits, pixel colors are just indexes in a palette.
+1 byte  = 4 pixels
+2 bytes = 0000000000000000
+4 bytes = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+tile/sprite = 8*8 pixels = 2*8 bytes = 16 bytes
+
+max tiles/sprites = 128
+mem tile/sprites  = 16 * 128 = 2048 = 8 pages
+
+total colors = 16 (on hardware, can't be modiefied on memory)
+palette = 4 colors (the first color will be used as the transparent color)
+the palette needs 4 numbers that goes from 0 to 15, one nibble(4 bits) it's perfect for that
+
+max palettes = 16
+mem palettes = 16 / 2 = 8 bytes
+
+the console will have a default font of 69 characters with 8x8 pixels
+mem characters = 16 * 69 = 1104 bytes, round to the next page 1280
+
+ZSRRRRRRRRRRRRRRRRBCCCCCVTTTTTTTT-----------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------
+
+0xff
+
+controller:
+      ^
+<- -> | | a b start select
+        v
+1 byte -> 0b00000000
+
+cpu mem + cartridge = 0xffff(64kb)
+
+cpu 0x0000 - 0x0bff
+cpu 0xa000 - 0xffff
+
+4 cores
+0 -> cor transparent
+1 2 3 -> cores da paleta
+
+1 byte  = 4px
+2 bytes = 8px
+
+2 * 8 = 16
+
+1 tile = 16 bytes
+
+128 tiles
+256 tiles bg
+256 tiles fg
+
+256 * 16 = 4096 = 0x1000
+128 * 16 = 2048 = 2kb
+
+
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+
+8 background
+8 sprites
+
+16 cores:
+	0x1 0x2 0x3 0x4 0x5 0x6 0x7 0x8 0x9 0xa 0xb 0xc 0xd 0xe 0xf
+
+1 byte  = 2 indices das cores
+2 bytes = 4 cores = 1 paleta
+
+1.5 bytes = 3 cores
+2   * 4 = 8  * 2 = 16 bytes
+1.5 * 8 = 12 * 2 = 24 bytes
+2   * 8 = 16 * 2 = 32 bytes
+
+
+
+0000 0000 0000
+
+0 - 63
+0 - 7
+
+64 + 8 = 72
+
+0b00000000
+
+0b100000
+0b000
+
+0b000000
+
+100
+
+0b00000000
+00
+
+16 * 16         = 256
+2 * 16 * 16 / 8 = 64
+
+10 * 16 * 16 = 2560 = 320
+
+0 3
+1 screen tile = 9 bits 
+16 * 16 = 256 * 9 =
+
+256 * 8
+3 + 6 = 9
+
+sprite:
+	1 byte - x
+	1 byte - y
+	1 byte - tile
+	2 bits - paleta
+	1 bit  - flip x
+	1 bit  - flip y
+	1 bit  - below
+	1 bit  - rot90
+
+
+memory layout:
+	cpu:
+		address           |  usage              |  permission
+		---------------------------------------------------
+		[0x0000 - 0x07ff] |  ram                | read/write
+		[0x0800 - 0x08ff] |  stack              | no-access
+		[0x0900 - 0x09ff] |  I/O                | read-only
+	rpu:
+		address           |  usage              |  permission
+		---------------------------------------------------
+		[0x1000 - 0x1fff] |  tiles background   | write-only
+		[0x2000 - 0x2fff] |  tiles sprites      | write-only
+		[0x3000 - 0x3007] |  pallete background | write-only
+		[0x3007 - 0x300f] |  pallete sprites    | write-only
+		[0x3010 - 0x3149] |  background         | write-only
+		[0x3150 - 0x3151] |  screen offset      | read/write
+	cartridge:
+		address           |  usage              |  permission
+		---------------------------------------------------
+		[0x3152 - 0xffff] |  code               | read-only
+
+rpu memory layout:
+
+memory layout:
+	[0x0000 - 0x00ff] zero page, used for cpu ram.
+	[0x0100 - 0x01ff] stack or cpu ram
+	[0x0200 - 0x11ff] more cpu ram
+	[0x1200 - 0x12ff] background
+	[0x1300 - 0x1307] palettes
+	[0x1308 - 0x17ff] characters (read only)
+	this memory is the rom loaded from the cartridge
+	[0x1800 - 0x18ff] reset vector
+	[0x1900 - 0x20ff] tiles/sprites
+	[0x2100 - 0xfffd] general purpose memory
+	[0xfffe - 0xffff] get the start address of the program
+
+registers: x  y  z  f  s  p
+           1  1  1  1  1  2
+
+x -> general purpose 
+y -> general purpose 
+z -> general purpose/math operations
+f -> flags
+s -> stack pointer
+p -> program pointer
+
+operations:
+	high nibble:
+		0x60      -> no operation
+		0x70/0x08 -> math
+		0x90      -> logic (cmp, bitwise)
+		0xa0      -> jumps
+		0xb0      -> load  mem/reg
+		0xc0      -> store mem/reg
+		0xd0      -> swap registers
+		0xe0      -> flag manipulation
+		0xf0      -> rendering
+parameters:
+	low nibble:
+		0x00      -> no parameter
+		0x01/0x02 -> x
+		0x03/0x04 -> y
+		0x05      -> z
+		0x06      -> z, x
+		0x07      -> z, y
+		0x08      -> x, y | x, y, z
+		0x09/0x0a -> z, memory
+		0x0b      -> memory
+		0x0c      -> number
+		0x0d/0x0e -> z, zero-page
+		0x0f      -> zero-page
+instructions:
+	0x60 -> nop            -> no operation
+	0x71 -> inx            -> incremeant x by 1
+	0x72 -> dex            -> decremeant x by 1
+	0x73 -> iny            -> incremeant y by 1
+	0x74 -> dey            -> decremeant y by 1
+	0x79 -> add            -> add memory to   z
+	0x7a -> sub            -> sub memory from z
+	0x7d -> add(zero-page) -> add zero-page to   z
+	0x7e -> sud(zero-page) -> sub zero-page from z
+	0xb9 -> ldz            -> load z into memory
+	0xbd -> ldz(zero-page) -> load z into zero-page
+	0xbd -> ldz(zero-page) -> load z into memory
+	0xf5 -> cpl            -> changes the current palette to the index in z
+	0xf1 -> ctl            -> changes the current tile to the index in x
+	0xf8 -> drw            -> draw sprite into the screen (x, y -> position, z -> attributes)
+
+drw instruction attributes:
+	bit 0 - flip x
+	bit 1 - flip y
+	bit 2 - below
+	bit 3 - rot90
+
+flags:
+	C : carry
+	Z : zero
+	L : less
+	N : negative
+	V : overflow
