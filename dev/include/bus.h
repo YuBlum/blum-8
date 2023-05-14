@@ -1,16 +1,16 @@
 #ifndef __BUS_H__
 #define __BUS_H__
 
-enum {
-	MEM_CPU,
-	MEM_RPU,
-	MEM_CAR /*cartridge memory*/
-};
+#include <types.h>
 
-/*65536*/
+#define MEMORY_READ  0x01
+#define MEMORY_WRITE 0x02
 
-#define MEM_CPU_CAP 65536
-#define MEM_RPU_CAP 65536
-#define MEM_CAR_CAP
+void bus_initialize(void);
+u8   bus_invalid_access(void);
+void bus_write_byte(u16 addr, u8  val);
+void bus_write_word(u16 addr, u16 val);
+u8   bus_read_byte(u16 addr);
+u16  bus_read_word(u16 addr);
 
 #endif/*__BUS_H__*/
