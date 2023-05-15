@@ -3,13 +3,10 @@
 
 #include <types.h>
 
-#define MEMORY_READ  0x01
-#define MEMORY_WRITE 0x02
+#define ROM_BEGIN 0x2f14
 
-void bus_initialize(void);
-u8   bus_invalid_access(void);
-void bus_write_byte(u16 addr, u8  val);
-void bus_write_word(u16 addr, u16 val);
+b8   bus_write_byte(u16 addr, u8  val);
+b8   bus_write_word(u16 addr, u16 val);
 u8   bus_read_byte(u16 addr);
 u16  bus_read_word(u16 addr);
 

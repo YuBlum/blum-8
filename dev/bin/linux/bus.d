@@ -1,1 +1,1 @@
-bin/linux/bus.o: src/bus.c include/bus.h include/types.h
+bin/linux/bus.o: src/bus.c include/bus.h include/types.h include/cpu.h
