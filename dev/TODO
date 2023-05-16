@@ -1,0 +1,17 @@
+proper assembler
+	instruction calls with parameters
+	labels
+	macros
+	structs
+rdu
+spu
+handling crashes
+tile editor
+play button
+memory viewer
+text editor (vim mode first, then a somewhat normal mode)
+export cartridges
+load cartridges
+save projects
+load projects
+a kind of server to publish cartridges

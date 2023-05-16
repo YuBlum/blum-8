@@ -14,7 +14,7 @@ static u8  y;
 static u8  z;
 static u8  f;
 static u8  s = 0xff;
-static u16 p = 0xfffe;
+static u16 p = ROM_BEGIN;
 static u8  clock;
 
 union byte {
@@ -45,6 +45,10 @@ static char *addrmd_name[] = {
 */
 
 static struct instruction inst[0x100];
+static u16 interrupts[INTERRUPT_COUNT] = {
+	[START_VECTOR] = ROM_BEGIN,
+	[FRAME_VECTOR] = ROM_BEGIN + 2
+};
 
 #define FLAG_GET(FLAG) ((f & (1 << FLAG)) != 0)
 #define FLAG_SET(FLAG, VAL) do {\
@@ -53,8 +57,15 @@ static struct instruction inst[0x100];
 } while(0)
 
 void
+cpu_interrupt(enum interrupt interrupt) {
+	bus_write_byte(0x0800 + s--, p >> 8);
+	bus_write_byte(0x0800 + s--, p & 0xff);
+	bus_write_byte(0x0800 + s--, f);
+	p = bus_read_word(interrupts[interrupt]);
+}
+
+void
 cpu_startup(void) {
-	p = bus_read_word(p);
 	b8 carry = 0;
 	for (union byte i = { 0 }; i.b || !carry; carry = (u8)(++i.b) == 0) {
 		     if (i.h == 0x0 || i.h == 0x1) inst[i.b].addrmd = NOA;

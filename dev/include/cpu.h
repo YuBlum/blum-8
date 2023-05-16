@@ -16,6 +16,13 @@ enum addrmd {
 	ZPY, ADR, ADX, ADY,
 };
 
+enum interrupt {
+	START_VECTOR,
+	FRAME_VECTOR,
+	INTERRUPT_COUNT
+};
+
+void cpu_interrupt(enum interrupt interrupt);
 void cpu_print_registers(void);
 void cpu_disassemble(void);
 void cpu_startup(void);
