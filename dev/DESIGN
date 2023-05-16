@@ -227,6 +227,492 @@ f -> flags
 s -> stack pointer
 p -> program pointer
 
+16 -> 60
+
+low nibble = 16 instructions
+verify if high nibble is odd or even = low nibble * 2 = 16 * 2 = 32
+
+60 - 26 = 34
+
+
+opcodes:
+	--------|------------------------------------------------|------------------------------------------------
+	name    |  description                                   | addressing modes:                              
+	        |                                                | noa | cst | zpg | zpx | zpy | adr | adx | ady | 
+	--------|------------------------------------------------|-----|-----|-----|-----|-----|-----|-----|-----|
+	nop     | no operation                                   | noa |     |     |     |     |     |     |     |
+	inx     | incremeant x by 1                              | noa |     |     |     |     |     |     |     |
+	dex     | decremeant x by 1                              | noa |     |     |     |     |     |     |     |
+	iny     | incremeant y by 1                              | noa |     |     |     |     |     |     |     |
+	dey     | decremeant y by 1                              | noa |     |     |     |     |     |     |     |
+	zrx     | zero out x                                     | noa |     |     |     |     |     |     |     |
+	zry     | zero out y                                     | noa |     |     |     |     |     |     |     |
+	psh     | pushes z into the stack                        | noa |     |     |     |     |     |     |     |
+	pop     | pops   the stack into z                        | noa |     |     |     |     |     |     |     |
+	psf     | pushes f into the stack                        | noa |     |     |     |     |     |     |     |
+	pof     | pops   the stack into f                        | noa |     |     |     |     |     |     |     |
+	ret     | return from subroutine                         | noa |     |     |     |     |     |     |     |
+	rti     | return from interrupt                          | noa |     |     |     |     |     |     |     |
+	tzy     | transfer z to y                                | noa |     |     |     |     |     |     |     |
+	tzx     | transfer z to x                                | noa |     |     |     |     |     |     |     |
+	tyz     | transfer y to z                                | noa |     |     |     |     |     |     |     |
+	tyx     | transfer y to x                                | noa |     |     |     |     |     |     |     |
+	txz     | transfer x to z                                | noa |     |     |     |     |     |     |     |
+	txy     | transfer x to y                                | noa |     |     |     |     |     |     |     |
+	szy     | swap z to y                                    | noa |     |     |     |     |     |     |     |
+	szx     | swap z to x                                    | noa |     |     |     |     |     |     |     |
+	sxy     | swap x to y                                    | noa |     |     |     |     |     |     |     |
+	sec     | set carry     flag                             | noa |     |     |     |     |     |     |     |
+	sev     | set overflow  flag                             | noa |     |     |     |     |     |     |     |
+	clc     | clear carry     flag                           | noa |     |     |     |     |     |     |     |
+	clv     | clear overflow  flag                           | noa |     |     |     |     |     |     |     |
+	shr     | shifts  to the right (z or memory)             | noa |     | zpg | zpx | zpy | adr | adx | ady |
+	shl     | shifts  to the left  (z or memory)             | noa |     | zpg | zpx | zpy | adr | adx | ady |
+	ror     | rotates to the right (z or memory)             | noa |     | zpg | zpx | zpy | adr | adx | ady |
+	rol     | rotates to the left  (z or memory)             | noa |     | zpg | zpx | zpy | adr | adx | ady |
+	and     | and with z and stores the result in z          |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	lor     | or  with z and stores the result in z          |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	xor     | xor with z and stores the result in z          |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	inc     | incremeants memory by 1                        |     |     | zpg | zpx | zpy | adr | adx | ady |
+	dec     | decremeants memory by 1                        |     |     | zpg | zpx | zpy | adr | adx | ady |
+	adc     | add to   z with carry                          |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	sbc     | sub from z with carry                          |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	ldz     | load byte into z                               |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	stz     | stores z into memory                           |     |     | zpg | zpx | zpy | adr | adx | ady |
+	ldx     | load byte into x                               |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	stx     | stores x into memory                           |     |     | zpg | zpx | zpy | adr | adx | ady |
+	ldy     | load byte into y                               |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	sty     | stores y into memory                           |     |     | zpg | zpx | zpy | adr | adx | ady |
+	jts     | jump to subroutine                             |     |     |     |     |     | adr |     |     |
+	jmp     | jump to memory location                        |     |     |     |     |     | adr |     |     |
+	jeq     | jump if the previous operation is equal        |     |     |     |     |     | adr |     |     |
+	jle     | jump if the previous operation is less         |     |     |     |     |     | adr |     |     |
+	jgr     | jump if the previous operation is greater      |     |     |     |     |     | adr |     |     |
+	jne     | jump if the previous operation is not equal    |     |     |     |     |     | adr |     |     |
+	jnl     | jump if the previous operation is not less     |     |     |     |     |     | adr |     |     |
+	jng     | jump if the previous operation is not greater  |     |     |     |     |     | adr |     |     |
+	jpv     | jump if the overflow flag is set               |     |     |     |     |     | adr |     |     |
+	jnv     | jump if the overflow flag is not set           |     |     |     |     |     | adr |     |     |
+	jpn     | jump if the negative flag is set               |     |     |     |     |     | adr |     |     |
+	jnn     | jump if the negative flag is not set           |     |     |     |     |     | adr |     |     |
+	jpc     | jump if the carry    flag is set               |     |     |     |     |     | adr |     |     |
+	jnc     | jump if the carry    flag is not set           |     |     |     |     |     | adr |     |     |
+	cmp     | compare with z                                 |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	cpx     | compare with x                                 |     | cst | zpg | zpx | zpy | adr | adx | ady |
+	cpy     | compare with y                                 |     | cst | zpg | zpx | zpy | adr | adx | ady |
+
+addressing modes:
+	-----------------------|------------------------------------------------------------------------------------------------------
+	name                   |  description                                                                                         
+	-----------------------|------------------------------------------------------------------------------------------------------
+	noa (no args)          | no arguments
+	cst (constant)         | constant number
+	zpg (zeropage)         | get the byte of the address on the zeropage
+	zpx (zeropage x)       | add x register to zeropage address than get the byte at the resulting address.
+	zpy (zeropage y)       | add y register to zeropage address than get the byte at the resulting address.
+	adr (address)          | get the byte of the address
+	adx (address x)        | add x register to address than get the byte at the resulting address.
+	ady (address y)        | add y register to address than get the byte at the resulting address.
+
+instructions:
+	-------|--------|----------------
+	index  | opcode | addresing mode 
+	-------|--------|----------------
+	 0x00  |  nop   |  noa           
+	 0x01  |  inx   |  noa             
+	 0x02  |  dex   |  noa             
+	 0x03  |  iny   |  noa             
+	 0x04  |  dey   |  noa             
+	 0x05  |  zrx   |  noa             
+	 0x06  |  zry   |  noa             
+	 0x07  |  psh   |  noa             
+	 0x08  |  pop   |  noa             
+	 0x09  |  psf   |  noa             
+	 0x0a  |  pof   |  noa             
+	 0x0b  |  ret   |  noa             
+	 0x0c  |  rti   |  noa             
+	 0x0d  |  tzy   |  noa             
+	 0x0e  |  tzx   |  noa             
+	 0x0f  |  tyz   |  noa             
+	 0x10  |  tyx   |  noa             
+	 0x11  |  txz   |  noa             
+	 0x12  |  txy   |  noa             
+	 0x13  |  szy   |  noa             
+	 0x14  |  szx   |  noa             
+	 0x15  |  sxy   |  noa             
+	 0x16  |  sec   |  noa             
+	 0x17  |  sev   |  noa             
+	 0x18  |  clc   |  noa             
+	 0x19  |  clv   |  noa             
+	 0x1a  |  shr   |  noa             
+	 0x1b  |  shl   |  noa             
+	 0x1c  |  ror   |  noa             
+	 0x1d  |  rol   |  noa             
+	 0x20  |  and   |  cst             
+	 0x21  |  lor   |  cst             
+	 0x22  |  xor   |  cst             
+	 0x23  |  adc   |  cst             
+	 0x24  |  sbc   |  cst             
+	 0x25  |  ldz   |  cst             
+	 0x26  |  ldx   |  cst             
+	 0x27  |  ldy   |  cst             
+	 0x28  |  cmp   |  cst             
+	 0x29  |  cpx   |  cst             
+	 0x2a  |  cpy   |  cst             
+	 0x30  |  shr   |  adx             
+	 0x31  |  shl   |  adx             
+	 0x32  |  ror   |  adx             
+	 0x33  |  rol   |  adx             
+	 0x34  |  and   |  adx             
+	 0x35  |  lor   |  adx             
+	 0x36  |  xor   |  adx             
+	 0x37  |  inc   |  adx             
+	 0x38  |  dec   |  adx             
+	 0x39  |  adc   |  adx             
+	 0x3a  |  sbc   |  adx             
+	 0x3b  |  ldz   |  adx             
+	 0x3c  |  stz   |  adx             
+	 0x3d  |  ldx   |  adx             
+	 0x3e  |  stx   |  adx             
+	 0x3f  |  ldy   |  adx             
+	 0x40  |  sty   |  adx             
+	 0x41  |  cmp   |  adx          
+	 0x42  |  cpx   |  adx          
+	 0x43  |  cpy   |  adx          
+	 0x50  |  shr   |  ady             
+	 0x51  |  shl   |  ady             
+	 0x52  |  ror   |  ady             
+	 0x53  |  rol   |  ady             
+	 0x54  |  and   |  ady             
+	 0x55  |  lor   |  ady             
+	 0x56  |  xor   |  ady             
+	 0x57  |  inc   |  ady             
+	 0x58  |  dec   |  ady             
+	 0x59  |  adc   |  ady             
+	 0x5a  |  sbc   |  ady             
+	 0x5b  |  ldz   |  ady             
+	 0x5c  |  stz   |  ady             
+	 0x5d  |  ldx   |  ady             
+	 0x5e  |  stx   |  ady             
+	 0x5f  |  ldy   |  ady             
+	 0x60  |  sty   |  ady             
+	 0x61  |  cmp   |  ady             
+	 0x62  |  cpx   |  ady             
+	 0x63  |  cpy   |  ady             
+	 0x70  |  shr   |  zpx             
+	 0x71  |  shl   |  zpx             
+	 0x72  |  ror   |  zpx             
+	 0x73  |  rol   |  zpx             
+	 0x74  |  and   |  zpx             
+	 0x75  |  lor   |  zpx             
+	 0x76  |  xor   |  zpx             
+	 0x77  |  inc   |  zpx             
+	 0x78  |  dec   |  zpx             
+	 0x79  |  adc   |  zpx             
+	 0x7a  |  sbc   |  zpx             
+	 0x7b  |  ldz   |  zpx             
+	 0x7c  |  stz   |  zpx             
+	 0x7d  |  ldx   |  zpx             
+	 0x7e  |  stx   |  zpx             
+	 0x7f  |  ldy   |  zpx             
+	 0x80  |  sty   |  zpx             
+	 0x81  |  cmp   |  zpx             
+	 0x82  |  cpx   |  zpx             
+	 0x83  |  cpy   |  zpx             
+	 0x90  |  shr   |  zpy             
+	 0x91  |  shl   |  zpy             
+	 0x92  |  ror   |  zpy             
+	 0x93  |  rol   |  zpy             
+	 0x94  |  and   |  zpy             
+	 0x95  |  lor   |  zpy             
+	 0x96  |  xor   |  zpy             
+	 0x97  |  inc   |  zpy             
+	 0x98  |  dec   |  zpy             
+	 0x99  |  adc   |  zpy             
+	 0x9a  |  sbc   |  zpy             
+	 0x9b  |  ldz   |  zpy             
+	 0x9c  |  stz   |  zpy             
+	 0x9d  |  ldx   |  zpy             
+	 0x9e  |  stx   |  zpy             
+	 0x9f  |  ldy   |  zpy             
+	 0xa0  |  sty   |  zpy             
+	 0xa1  |  cmp   |  zpy             
+	 0xa2  |  cpx   |  zpy             
+	 0xa3  |  cpy   |  zpy             
+	 0xb0  |  shr   |  zpg             
+	 0xb1  |  shl   |  zpg             
+	 0xb2  |  ror   |  zpg             
+	 0xb3  |  rol   |  zpg             
+	 0xb4  |  and   |  zpg             
+	 0xb5  |  lor   |  zpg             
+	 0xb6  |  xor   |  zpg             
+	 0xb7  |  inc   |  zpg             
+	 0xb8  |  dec   |  zpg             
+	 0xb9  |  adc   |  zpg             
+	 0xba  |  sbc   |  zpg             
+	 0xbb  |  ldz   |  zpg             
+	 0xbc  |  stz   |  zpg             
+	 0xbd  |  ldx   |  zpg             
+	 0xbe  |  stx   |  zpg             
+	 0xbf  |  ldy   |  zpg             
+	 0xc0  |  sty   |  zpg             
+	 0xc1  |  cmp   |  zpg             
+	 0xc2  |  cpx   |  zpg             
+	 0xc3  |  cpy   |  zpg             
+	 0xd0  |  shr   |  adr             
+	 0xd1  |  shl   |  adr             
+	 0xd2  |  ror   |  adr             
+	 0xd3  |  rol   |  adr             
+	 0xd4  |  and   |  adr             
+	 0xd5  |  lor   |  adr             
+	 0xd6  |  xor   |  adr             
+	 0xd7  |  inc   |  adr             
+	 0xd8  |  dec   |  adr             
+	 0xd9  |  adc   |  adr             
+	 0xda  |  sbc   |  adr             
+	 0xdb  |  ldz   |  adr             
+	 0xdc  |  stz   |  adr             
+	 0xdd  |  ldx   |  adr             
+	 0xde  |  stx   |  adr             
+	 0xdf  |  ldy   |  adr             
+	 0xe0  |  sty   |  adr             
+	 0xe1  |  jts   |  adr             
+	 0xe2  |  jmp   |  adr             
+	 0xe3  |  jeq   |  adr             
+	 0xe4  |  jle   |  adr             
+	 0xe5  |  jgr   |  adr             
+	 0xe6  |  jne   |  adr             
+	 0xe7  |  jnl   |  adr             
+	 0xe8  |  jng   |  adr             
+	 0xe9  |  jpv   |  adr             
+	 0xea  |  jnv   |  adr             
+	 0xeb  |  jpn   |  adr             
+	 0xec  |  jnn   |  adr             
+	 0xed  |  jpc   |  adr             
+	 0xee  |  jnc   |  adr             
+	 0xff  |  cmp   |  adr             
+	 0xf0  |  cpx   |  adr             
+	 0xf1  |  cpy   |  adr             
+
+
+8
+5
+8 - 5 = 3 + 1 = 4
+
+4
+
+64 * 2 = 128
+
+0 0 0 0
+1 1 1 1
+2 2 2 2
+3 3 3 3
+4 4 4 4
+5 5 5 5
+6 6 6 6
+7 7 7 7
+8 8 8 8
+9 9 9 9
+a a a a
+b b b b
+c c c c
+d d d d
+e e e e
+f f f f
+
+
+ 0x00  |  nop   |  noa 
+ 0x01  |  inx   |  noa 
+ 0x02  |  dex   |  noa 
+ 0x03  |  iny   |  noa 
+ 0x04  |  dey   |  noa 
+ 0x05  |  zrx   |  noa 
+ 0x06  |  zry   |  noa 
+ 0x07  |  psh   |  noa 
+ 0x08  |  pop   |  noa 
+ 0x09  |  psf   |  noa 
+ 0x0a  |  pof   |  noa 
+ 0x0b  |  ret   |  noa 
+ 0x0c  |  rti   |  noa 
+ 0x0d  |  tzy   |  noa 
+ 0x0e  |  tzx   |  noa 
+ 0x0f  |  tyz   |  noa 
+ 0x10  |  tyx   |  noa 
+ 0x11  |  txz   |  noa 
+ 0x12  |  txy   |  noa 
+ 0x13  |  szy   |  noa 
+ 0x14  |  szx   |  noa 
+ 0x15  |  sxy   |  noa 
+ 0x16  |  sec   |  noa 
+ 0x17  |  sev   |  noa 
+ 0x18  |  clc   |  noa 
+ 0x19  |  clv   |  noa 
+ 0x1a  |  shr   |  noa 
+ 0x1b  |  shl   |  noa 
+ 0x1c  |  ror   |  noa 
+ 0x1d  |  rol   |  noa 
+
+ 0x20  |  and   |  cst 
+ 0x21  |  lor   |  cst 
+ 0x22  |  xor   |  cst 
+ 0x23  |  adc   |  cst 
+ 0x24  |  sbc   |  cst 
+ 0x25  |  ldz   |  cst 
+ 0x26  |  ldx   |  cst 
+ 0x27  |  ldy   |  cst 
+ 0x28  |  cmp   |  cst 
+ 0x29  |  cpx   |  cst 
+ 0x2a  |  cpy   |  cst 
+
+ 0x30  |  shr   |  adx 
+ 0x31  |  shl   |  adx 
+ 0x32  |  ror   |  adx 
+ 0x33  |  rol   |  adx 
+ 0x34  |  and   |  adx 
+ 0x35  |  lor   |  adx 
+ 0x36  |  xor   |  adx 
+ 0x37  |  inc   |  adx 
+ 0x38  |  dec   |  adx 
+ 0x39  |  adc   |  adx 
+ 0x3a  |  sbc   |  adx 
+ 0x3b  |  ldz   |  adx 
+ 0x3c  |  stz   |  adx 
+ 0x3d  |  ldx   |  adx 
+ 0x3e  |  stx   |  adx 
+ 0x3f  |  ldy   |  adx 
+
+ 0x40  |  sty   |  adx 
+ 0x41  |  cmp   |  adx 
+ 0x42  |  cpx   |  adx 
+ 0x43  |  cpy   |  adx 
+
+ 0x50  |  shr   |  ady 
+ 0x51  |  shl   |  ady 
+ 0x52  |  ror   |  ady 
+ 0x53  |  rol   |  ady 
+ 0x54  |  and   |  ady 
+ 0x55  |  lor   |  ady 
+ 0x56  |  xor   |  ady 
+ 0x57  |  inc   |  ady 
+ 0x58  |  dec   |  ady 
+ 0x59  |  adc   |  ady 
+ 0x5a  |  sbc   |  ady 
+ 0x5b  |  ldz   |  ady 
+ 0x5c  |  stz   |  ady 
+ 0x5d  |  ldx   |  ady 
+ 0x5e  |  stx   |  ady 
+ 0x5f  |  ldy   |  ady 
+ 0x60  |  sty   |  ady 
+ 0x61  |  cmp   |  ady 
+ 0x62  |  cpx   |  ady 
+ 0x63  |  cpy   |  ady 
+
+ 0x70  |  shr   |  zpx 
+ 0x71  |  shl   |  zpx 
+ 0x72  |  ror   |  zpx 
+ 0x73  |  rol   |  zpx 
+ 0x74  |  and   |  zpx 
+ 0x75  |  lor   |  zpx 
+ 0x76  |  xor   |  zpx 
+ 0x77  |  inc   |  zpx 
+ 0x78  |  dec   |  zpx 
+ 0x79  |  adc   |  zpx 
+ 0x7a  |  sbc   |  zpx 
+ 0x7b  |  ldz   |  zpx 
+ 0x7c  |  stz   |  zpx 
+ 0x7d  |  ldx   |  zpx 
+ 0x7e  |  stx   |  zpx 
+ 0x7f  |  ldy   |  zpx 
+ 0x80  |  sty   |  zpx 
+ 0x81  |  cmp   |  zpx 
+ 0x82  |  cpx   |  zpx 
+ 0x83  |  cpy   |  zpx 
+
+ 0x90  |  shr   |  zpy 
+ 0x91  |  shl   |  zpy 
+ 0x92  |  ror   |  zpy 
+ 0x93  |  rol   |  zpy 
+ 0x94  |  and   |  zpy 
+ 0x95  |  lor   |  zpy 
+ 0x96  |  xor   |  zpy 
+ 0x97  |  inc   |  zpy 
+ 0x98  |  dec   |  zpy 
+ 0x99  |  adc   |  zpy 
+ 0x9a  |  sbc   |  zpy 
+ 0x9b  |  ldz   |  zpy 
+ 0x9c  |  stz   |  zpy 
+ 0x9d  |  ldx   |  zpy 
+ 0x9e  |  stx   |  zpy 
+ 0x9f  |  ldy   |  zpy 
+ 0xa0  |  sty   |  zpy 
+ 0xa1  |  cmp   |  zpy 
+ 0xa2  |  cpx   |  zpy 
+ 0xa3  |  cpy   |  zpy 
+
+ 0xb0  |  shr   |  zpg 
+ 0xb1  |  shl   |  zpg 
+ 0xb2  |  ror   |  zpg 
+ 0xb3  |  rol   |  zpg 
+ 0xb4  |  and   |  zpg 
+ 0xb5  |  lor   |  zpg 
+ 0xb6  |  xor   |  zpg 
+ 0xb7  |  inc   |  zpg 
+ 0xb8  |  dec   |  zpg 
+ 0xb9  |  adc   |  zpg 
+ 0xba  |  sbc   |  zpg 
+ 0xbb  |  ldz   |  zpg 
+ 0xbc  |  stz   |  zpg 
+ 0xbd  |  ldx   |  zpg 
+ 0xbe  |  stx   |  zpg 
+ 0xbf  |  ldy   |  zpg 
+ 0xc0  |  sty   |  zpg 
+ 0xc1  |  cmp   |  zpg 
+ 0xc2  |  cpx   |  zpg 
+ 0xc3  |  cpy   |  zpg 
+
+ 0xd0  |  shr   |  adr 
+ 0xd1  |  shl   |  adr 
+ 0xd2  |  ror   |  adr 
+ 0xd3  |  rol   |  adr 
+ 0xd4  |  and   |  adr 
+ 0xd5  |  lor   |  adr 
+ 0xd6  |  xor   |  adr 
+ 0xd7  |  inc   |  adr 
+ 0xd8  |  dec   |  adr 
+ 0xd9  |  adc   |  adr 
+ 0xda  |  sbc   |  adr 
+ 0xdb  |  ldz   |  adr 
+ 0xdc  |  stz   |  adr 
+ 0xdd  |  ldx   |  adr 
+ 0xde  |  stx   |  adr 
+ 0xdf  |  ldy   |  adr 
+
+ 0xe0  |  sty   |  adr 
+ 0xe1  |  jts   |  adr 
+ 0xe2  |  jmp   |  adr 
+ 0xe3  |  jeq   |  adr 
+ 0xe4  |  jle   |  adr 
+ 0xe5  |  jgr   |  adr 
+ 0xe6  |  jne   |  adr 
+ 0xe7  |  jnl   |  adr 
+ 0xe8  |  jng   |  adr 
+ 0xe9  |  jpv   |  adr 
+ 0xea  |  jnv   |  adr 
+ 0xeb  |  jpn   |  adr 
+ 0xec  |  jnn   |  adr 
+ 0xed  |  jpc   |  adr 
+ 0xef  |  jnc   |  adr 
+
+ 0xf0  |  cmp   |  adr 
+ 0xf1  |  cpx   |  adr 
+ 0xf2  |  cpy   |  adr 
+
+
+
+
+
+
+
 instructions:
 	0x00 -> nop -> no operation
 	0x01 -> inx -> incremeant x by 1
@@ -235,63 +721,65 @@ instructions:
 	0x04 -> dey -> decremeant y by 1
 	0x05 -> szr -> shifts z to the right by one bit
 	0x06 -> szl -> shifts z to the left  by one bit
-	0x07 -> shr -> shifts memory to the right by one bit
-	0x08 -> shl -> shifts memory to the left  by one bit
-	0x09 -> ror -> rotate memory to the right by one bit
-	0x0a -> rol -> rotate memory to the left  by one bit
-	0x0b -> rzr -> rotate z to the right by one bit
-	0x0c -> rzl -> rotate z to the left  by one bit
-	0x0d -> and -> and memory with z, the result is stored in z
-	0x0e -> lor -> or  memory with z, the result is stored in z
-	0x0f -> xor -> xor memory with z, the result is stored in z
-	0x10 -> inc -> incremeants memory by 1
-	0x11 -> dec -> incremeants memory by 1
-	0x12 -> adc -> add memory to   z with carry
-	0x13 -> sbc -> sub memory from z with carry
-	0x14 -> ldz -> load memory into z
-	0x15 -> stz -> stores z into memory
-	0x16 -> ldx -> load memory into x
-	0x17 -> stx -> stores x into memory
-	0x18 -> ldy -> load memory into y
-	0x19 -> sty -> stores y into memory
-	0x1a -> zrx -> zero out x
-	0x1b -> zry -> zero out y
-	0x1c -> psh -> pushes z into the stack
-	0x1d -> pop -> pops   the stack into z
-	0x1e -> psf -> pushes f into the stack
-	0x1f -> pof -> pops   the stack into f
-	0x20 -> jts -> jump to subroutine
-	0x21 -> jmp -> jump to memory location
-	0x22 -> jeq -> jump if the previous operation is equal
-	0x23 -> jle -> jump if the previous operation is less
-	0x24 -> jgr -> jump if the previous operation is greater
-	0x25 -> jne -> jump if the previous operation is not equal
-	0x26 -> jnl -> jump if the previous operation is not less
-	0x27 -> jng -> jump if the previous operation is not greater
-	0x28 -> jpv -> jump if the overflow flag is set
-	0x29 -> jnv -> jump if the overflow flag is not set
-	0x2a -> jpn -> jump if the negative flag is set
-	0x2b -> jnn -> jump if the negative flag is not set
-	0x2c -> jpc -> jump if the carry    flag is not set
-	0x2d -> jnc -> jump if the carry    flag is not set
-	0x2e -> rfs -> return from subroutine
-	0x2f -> rfi -> return from interrupt  
-	0x30 -> tzy -> transfer z to y 
-	0x31 -> tzx -> transfer z to x 
-	0x32 -> tyz -> transfer y to z 
-	0x33 -> tyx -> transfer y to x 
-	0x34 -> txz -> transfer x to z 
-	0x35 -> txy -> transfer x to y 
-	0x36 -> szy -> swap z to y 
-	0x37 -> szx -> swap z to x 
-	0x38 -> sxy -> swap x to y 
-	0x39 -> sec -> set carry     flag
-	0x3a -> sev -> set overflow  flag
-	0x3b -> clc -> clear carry     flag
-	0x3c -> clv -> clear overflow  flag
+	0x07 -> rzr -> rotate z to the right by one bit
+	0x08 -> rzl -> rotate z to the left  by one bit
+	0x09 -> zrx -> zero out x
+	0x0a -> zry -> zero out y
+	0x0b -> psh -> pushes z into the stack
+	0x0c -> pop -> pops   the stack into z
+	0x0d -> psf -> pushes f into the stack
+	0x0e -> pof -> pops   the stack into f
+	0x0f -> rfs -> return from subroutine
+	0x10 -> rfi -> return from interrupt  
+	0x11 -> tzy -> transfer z to y 
+	0x12 -> tzx -> transfer z to x 
+	0x13 -> tyz -> transfer y to z 
+	0x14 -> tyx -> transfer y to x 
+	0x15 -> txz -> transfer x to z 
+	0x16 -> txy -> transfer x to y 
+	0x17 -> szy -> swap z to y 
+	0x18 -> szx -> swap z to x 
+	0x19 -> sxy -> swap x to y 
+	0x1a -> sec -> set carry     flag
+	0x1b -> sev -> set overflow  flag
+	0x1c -> clc -> clear carry     flag
+	0x1d -> clv -> clear overflow  flag
+	2 bytes argument
+	0x1e -> shr -> shifts memory to the right by one bit
+	0x1f -> shl -> shifts memory to the left  by one bit
+	0x20 -> ror -> rotate memory to the right by one bit
+	0x21 -> rol -> rotate memory to the left  by one bit
+	0x22 -> and -> and memory with z, the result is stored in z
+	0x23 -> lor -> or  memory with z, the result is stored in z
+	0x24 -> xor -> xor memory with z, the result is stored in z
+	0x25 -> inc -> incremeants memory by 1
+	0x26 -> dec -> incremeants memory by 1
+	0x27 -> adc -> add memory to   z with carry
+	0x28 -> sbc -> sub memory from z with carry
+	0x29 -> ldz -> load memory into z
+	0x2a -> stz -> stores z into memory
+	0x2b -> ldx -> load memory into x
+	0x2c -> stx -> stores x into memory
+	0x2d -> ldy -> load memory into y
+	0x2e -> sty -> stores y into memory
+	0x2f -> jts -> jump to subroutine
+	0x30 -> jmp -> jump to memory location
+	0x31 -> jeq -> jump if the previous operation is equal
+	0x32 -> jle -> jump if the previous operation is less
+	0x33 -> jgr -> jump if the previous operation is greater
+	0x34 -> jne -> jump if the previous operation is not equal
+	0x35 -> jnl -> jump if the previous operation is not less
+	0x36 -> jng -> jump if the previous operation is not greater
+	0x37 -> jpv -> jump if the overflow flag is set
+	0x38 -> jnv -> jump if the overflow flag is not set
+	0x39 -> jpn -> jump if the negative flag is set
+	0x3a -> jnn -> jump if the negative flag is not set
+	0x3b -> jpc -> jump if the carry    flag is set
+	0x3c -> jnc -> jump if the carry    flag is not set
 	0x3d -> cmp -> compare memory with z
 	0x3e -> cpx -> compare memory with x
 	0x3f -> cpy -> compare memory with y
+	1 byte argument
 	0x40 -> adn -> and number with z, the result is stored in z
 	0x41 -> orn -> or  number with z, the result is stored in z
 	0x42 -> xrn -> xor number with z, the result is stored in z
