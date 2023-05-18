@@ -30,7 +30,7 @@ bus_read_word(u16 addr) {
 
 void
 bus_cartridge_load(u8 *rom, u32 rom_size) {
-	if (rom_size > 0xffff - ROM_BEGIN) {
+	if (rom_size > 0x10000 - ROM_BEGIN) {
 		fprintf(stderr, "error: rom is too big\n");
 		exit(1);
 	}

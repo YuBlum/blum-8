@@ -223,9 +223,9 @@ memory layout:
 		[0x37fa - 0x37fa] |  background x scrolling | 1b
 		[0x37fb - 0x37fb] |  background y scrolling | 1b
 	rom:                |                         |
-		[0x37fc - 0x37fd] |  reset inter. addr      | 2b
-		[0x37fe - 0x37ff] |  vblnk inter. addr      | 2b
-		[0x3800 - 0xffff] |  general purpose        | 50kb (51200b)
+		[0x37fc - 0xfffb] |  general purpose        | 50kb (51200b)
+		[0xfffc - 0xfffd] |  reset inter. addr      | 2b
+		[0xfffe - 0xffff] |  vblnk inter. addr      | 2b
 
 
 registers: x  y  z  f  s  p

@@ -10,8 +10,7 @@
 int
 main(void) {
 	cpu_startup();
-	assembler_lex("program.s");
-	assembler_parse();
+	if (assemble("program.s")) exit(1);
 	cpu_interrupt(RESET_VECTOR);
 	while (1) {
 		cpu_clock();
