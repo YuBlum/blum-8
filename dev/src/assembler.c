@@ -11,11 +11,12 @@
 
 #define MAX(V1, V2) (V1 > V2 ? V1 : V2)
 
-struct string {
+struct split {
 	const i8 *buf;
 	u32 siz;
 	u32 line;
 	u32 col;
+	b8  string_literal;
 };
 
 struct token {
@@ -23,7 +24,7 @@ struct token {
 	enum addrmd addrmd;
 	union {
 		enum   opcode opcode;
-		struct string string;
+		struct split string;
 	};
 	union {
 		u8  byte;
@@ -32,15 +33,13 @@ struct token {
 };
 
 struct label {
-	struct string string;
+	struct split string;
 	u16           addr;
 };
 
 static struct label *labels;
-static i8            separators[] = " \t\n";
-static i8            operators[]  = ":$%.";
 
-i32 get_label(struct string string) {
+i32 get_label(struct split string) {
 	for (u32 i = 0; i < arraylist_size(labels); i++) {
 		if (string.siz == labels[i].string.siz && strncmp(string.buf, labels[i].string.buf, string.siz) == 0)
 			return i;
@@ -70,13 +69,29 @@ assemble(const i8 *name) {
 	fread(source, 1, file_size, file);
 	source[file_size] = '\0';
 	i8 *original_source_ptr = source;
+	/* lists allocations */
+	struct split *splitted = arraylist_alloc(sizeof (struct split));
+	struct token *tokens = arraylist_alloc(sizeof (struct token));
+	labels = arraylist_alloc(sizeof (struct label));
 	/* split source */
-	struct string *splitted = arraylist_alloc(sizeof (struct string));
-	struct string *split = NULL;
-	u32 line = 1;
-	u32 col  = 1;
+	static i8 separators[] = " \t\n";
+	static i8 operators[]  = ":$%.,";
+	struct split *split = NULL;
+	b8  is_str = 0;
+	u32 line   = 1;
+	u32 col    = 1;
 	while (*source) {
 		if (strchr(separators, *source)) {
+			if (is_str) {
+				if (*source == ' ' || *source == '\t') {
+					goto assemble_split;
+				} else {
+					fprintf(stderr, "error: %s : %u,%u: missing closing '\"' on string literal\n",
+						 name, line, col);
+					error = 1;
+					goto assemble_end;
+				}
+			}
 			split = NULL;
 			col++;
 			if (*source == '\n') {
@@ -93,30 +108,43 @@ assemble(const i8 *name) {
 			}
 			continue;
 		}
-		if (strchr(operators, *source)) {
-			splitted = arraylist_push(splitted, &(struct string) { source++, 1, line, col });
+		if (*source == '"') {
+			is_str = !is_str;
+			split = NULL;
+			col++;
+			source++;
 			continue;
 		}
+		if (strchr(operators, *source) && !is_str) {
+			splitted = arraylist_push(splitted, &(struct split) { source++, 1, line, col, 0 });
+			split = NULL;
+			col++;
+			continue;
+		}
+assemble_split:
 		if (!split) {
-			splitted = arraylist_push(splitted, &(struct string) { source, 0, line, col  });
+			splitted = arraylist_push(splitted, &(struct split) { source, 0, line, col, is_str });
 			split = splitted + (arraylist_size(splitted) - 1);
 		}
 		split->siz++;
 		col++;
 		source++;
 	}
-	source = original_source_ptr;
 	/* lexify */
-	struct token *tokens = arraylist_alloc(sizeof (struct token));
-	labels = arraylist_alloc(sizeof (struct label));
 	u32 code_size = 0;
 	for (u32 i = 0; i < arraylist_size(splitted); i++) {
 		i32 opcode;
 		u32 hex;
+		u32 addrmd = NOA;
 		i8 *invalid_char;
+		if (splitted[i].string_literal) {
+			code_size += splitted[i].siz;
+			tokens = arraylist_push(tokens, &(struct token) { TKN_STR, .string = splitted[i], .addrmd = CST });
+			continue;
+		}
 		switch (splitted[i].buf[0]) {
 			case '%':
-				if (i + 1 >= arraylist_size(splitted) - 1) {
+				if (i + 1 > arraylist_size(splitted) - 1) {
 					fprintf(stderr, "error: %s : %u,%u: '%%' prefix without a constant\n",
 						 name, splitted[i].line, splitted[i].col);
 					error = 1;
@@ -140,7 +168,7 @@ assemble(const i8 *name) {
 				tokens = arraylist_push(tokens, &(struct token) { TKN_CST, .byte = hex, .addrmd = CST });
 				break;
 			case '$':
-				if (i + 1 >= arraylist_size(splitted) - 1) {
+				if (i + 1 > arraylist_size(splitted) - 1) {
 					fprintf(stderr, "error: %s : %u,%u: '$' prefix without an address\n",
 						 name, splitted[i].line, splitted[i].col);
 					error = 1;
@@ -163,11 +191,40 @@ assemble(const i8 *name) {
 					goto assemble_end;
 				}
 				if (hex > 0xff) {
+					addrmd = ADR;
 					code_size += 2;
-					tokens = arraylist_push(tokens, &(struct token) { TKN_ADR, .word = hex, .addrmd = ADR });
 				} else {
+					addrmd = ZPG;
 					code_size++;
-					tokens = arraylist_push(tokens, &(struct token) { TKN_ADR, .byte = hex, .addrmd = ZPG });
+				}
+				tokens = arraylist_push(tokens, &(struct token) { TKN_ADR, .word = hex, .addrmd = addrmd });
+				break;
+			case ',':
+				if (i == 0 || (
+					tokens[arraylist_size(tokens) - 1].type != TKN_LBL &&
+					tokens[arraylist_size(tokens) - 1].type != TKN_ADR)) {
+					fprintf(stderr, "error: %s : %u,%u: missing address before ',' %d\n",
+						 name, splitted[i].line, splitted[i].col, tokens[arraylist_size(tokens) - 1].type);
+					error = 1;
+					goto assemble_end;
+				}
+				if (i + 1 > arraylist_size(splitted) - 1) {
+					fprintf(stderr, "error: %s : %u,%u: missing register after ','\n",
+						 name, splitted[i].line, splitted[i].col);
+					error = 1;
+					goto assemble_end;
+				}
+				i++;
+				if (splitted[i].siz != 1 || (splitted[i].buf[0] != 'x' && splitted[i].buf[0] != 'y')) {
+					fprintf(stderr, "error: %s : %u,%u: '%.*s' is not a valid register\n",
+						 name, splitted[i].line, splitted[i].col, splitted[i].siz, splitted[i].buf);
+					error = 1;
+					goto assemble_end;
+				}
+				if (tokens[arraylist_size(tokens) - 1].addrmd == ADR) {
+					tokens = arraylist_push(tokens, &(struct token) { TKN_ADS, .addrmd = splitted[i].buf[0] == 'x' ? ADX : ADY });
+				} else {
+					tokens = arraylist_push(tokens, &(struct token) { TKN_ADS, .addrmd = splitted[i].buf[0] == 'x' ? ZPX : ZPY });
 				}
 				break;
 			case ':':
@@ -227,7 +284,11 @@ assemble(const i8 *name) {
 				break;
 			case TKN_INS:
 				if (i < arraylist_size(tokens) - 1) {
-					tokens[i].addrmd = tokens[i + 1].addrmd;
+					if (i + 1 < arraylist_size(tokens) - 1 && tokens[i + 2].type == TKN_ADS) {
+						tokens[i].addrmd = tokens[i + 2].addrmd;
+					} else {
+						tokens[i].addrmd = tokens[i + 1].addrmd;
+					}
 				}
 				code[idx++] = cpu_instruction_get(tokens[i].opcode, tokens[i].addrmd);
 				break;
@@ -242,6 +303,11 @@ assemble(const i8 *name) {
 				}
 				code[idx++] = labels[label].addr & 0xff;
 				code[idx++] = labels[label].addr >> 8;
+				break;
+			case TKN_STR:
+				for (u32 j = 0; j < tokens[i].string.siz; j++) {
+					code[idx++] = tokens[i].string.buf[j];
+				}
 				break;
 			default:
 				break;

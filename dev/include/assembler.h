@@ -6,8 +6,10 @@
 enum {
 	TKN_CST, /* constant */
 	TKN_ADR, /* address */
+	TKN_ADS, /* address sufix */
 	TKN_INS, /* instruction */
 	TKN_LBL, /* label */
+	TKN_STR, /* string */
 };
 
 b8 assemble(const i8 *name);
