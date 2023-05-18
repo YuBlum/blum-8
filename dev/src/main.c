@@ -12,14 +12,14 @@ main(void) {
 	cpu_startup();
 	if (assemble("program.s")) exit(1);
 	cpu_interrupt(RESET_VECTOR);
+	/*
 	while (1) {
 		cpu_clock();
 		getchar();
 	};
-	/*
+	*/
 	os_setup();
 	window_open();
 	os_cleanup();
-	*/
 	return 0;
 }

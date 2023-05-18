@@ -50,7 +50,7 @@ static u16 interrupts[INTERRUPT_COUNT] = {
 	[VBLNK_VECTOR] = ROM_BEGIN + 2
 };
 
-#define FLAG_GET(FLAG) ((f & (1 << FLAG)) != 0)
+#define FLAG_GET(FLAG) ((f >> FLAG) & 1)
 #define FLAG_SET(FLAG, VAL) do {\
 	if (VAL) f |=  (1 << (FLAG));\
 	else     f &= ~(1 << (FLAG));\
@@ -58,9 +58,11 @@ static u16 interrupts[INTERRUPT_COUNT] = {
 
 void
 cpu_interrupt(enum interrupt interrupt) {
-	bus_write_byte(0x0800 + s--, p >> 8);
-	bus_write_byte(0x0800 + s--, p & 0xff);
-	bus_write_byte(0x0800 + s--, f);
+	if (interrupt != RESET_VECTOR) {
+		bus_write_byte(0x0800 + s--, p >> 8);
+		bus_write_byte(0x0800 + s--, p & 0xff);
+		bus_write_byte(0x0800 + s--, f);
+	}
 	p = bus_read_word(interrupts[interrupt]);
 }
 
@@ -330,20 +332,22 @@ cpu_clock(void) {
 			break;
 		case ADC:
 			byte = bus_read_byte(addr);
-			word = z + byte + FLAG_GET(C);
-			FLAG_SET(C, word & 0x100);
+			word = (u16)z + (u16)byte + (u16)FLAG_GET(C);
+			FLAG_SET(C, word & 0xff00);
 			FLAG_SET(Z, !(word & 0xff));
-			FLAG_SET(N, (u8)(((z^(word & 0xff))&~(z^byte)) >> 7));
-			z = (word & 0xff);
+			FLAG_SET(N, word & 0x80);
+			FLAG_SET(V, (((z^word))&~(z^byte)) & 0x80);
+			z = word & 0xff;
 			clock += 3;
 			break;
 		case SBC:
 			byte = bus_read_byte(addr);
-			word = z - byte - !FLAG_GET(C);
-			FLAG_SET(C, word & 0x100);
+			word = (u16)z - (u16)byte + (u16)FLAG_GET(C);
+			FLAG_SET(C, word & 0xff00);
 			FLAG_SET(Z, !(word & 0xff));
-			FLAG_SET(N, (u8)(((z^(word & 0xff))&~(z^byte)) >> 7));
-			z = (word & 0xff);
+			FLAG_SET(N, word & 0x80);
+			FLAG_SET(V, (((z^word))&~(z^byte)) & 0x80);
+			z = word & 0xff;
 			clock += 3;
 			break;
 		case LDZ: 

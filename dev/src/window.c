@@ -1,5 +1,6 @@
 #include <renderer.h>
 #include <window.h>
+#include <config.h>
 #include <glfw3.h>
 #include <stdio.h>
 #include <os.h>
@@ -17,6 +18,9 @@ window_open(void) {
 	void  (*glfw_make_context_current)(void *)                        = glfw_func("glfwMakeContextCurrent");
 	void  (*glfw_poll_events)(void)                                   = glfw_func("glfwPollEvents");
 	void  (*glfw_swap_buffers)(void *)                                = glfw_func("glfwSwapBuffers");
+	void *(*glfw_get_primary_monitor)(void)                           = glfw_func("glfwGetPrimaryMonitor");
+	void *(*glfw_get_video_mode)(void *)                              = glfw_func("glfwGetVideoMode");
+	void *(*glfw_set_window_pos)(void *, i32, i32)                    = glfw_func("glfwSetWindowPos");
 	if (!glfw_init()) {
 		const i8 *error;
 		glfw_get_error(&error);
@@ -27,14 +31,25 @@ window_open(void) {
 	glfw_window_hint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfw_window_hint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfw_window_hint(GLFW_RESIZABLE, 0);
-	window = glfw_create_window(480, 480, "blum-8", NULL, NULL);
+	window = glfw_create_window(WINDOW_SIZE, WINDOW_SIZE, "blum-8", NULL, NULL);
 	if (!window) {
 		const i8 *error;
 		glfw_get_error(&error);
+		glfw_terminate();
 		fprintf(stderr, "error: could not create window: %s\n", error);
 		return;
 	}
+	void *monitor = glfw_get_primary_monitor();
+	if (!monitor) {
+		const i8 *error;
+		glfw_get_error(&error);
+		glfw_terminate();
+		fprintf(stderr, "error: could not get primary monitor: %s\n", error);
+		return;
+	}
+	struct { i32 width, height; } *vidmode = glfw_get_video_mode(monitor);
 	glfw_make_context_current(window);
+	glfw_set_window_pos(window, vidmode->width * 0.5f - WINDOW_SIZE * 0.5f, vidmode->height * 0.5f - WINDOW_SIZE * 0.5f);
 	renderer_begin();
 	while (!glfw_window_should_close(window)) {
 		renderer_update();

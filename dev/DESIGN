@@ -202,30 +202,79 @@ sprites capacity: 64
 16*16 = 256b / 4 = 64b
 
 memory layout:
-		------------------|-------------------------|----------------
-		address           |  usage                  | amount
-		------------------|-------------------------|----------------
-	cpu:                |                         |
-		[0x0000 - 0x1fff] |  ram                    | 8kb   (8192b)
-		[0x2000 - 0x20ff] |  stack                  | 256b
-		[0x2100 - 0x21f1] |  I/O                    | 242b
-	rpu:                |                         |
-		[0x21f2 - 0x29f1] |  tiles background       | 2kb   (2048b)
-		[0x29f2 - 0x31f1] |  tiles sprites          | 2kb   (2048b)
-		[0x31f2 - 0x32f1] |  sprites                | 256b
-		[0x32f2 - 0x33f1] |  background 00          | 256b
-		[0x33f2 - 0x34f1] |  background 01          | 256b
-		[0x34f2 - 0x35f1] |  background 10          | 256b
-		[0x35f2 - 0x36f1] |  background 11          | 256b
-		[0x36f2 - 0x37f1] |  background attributes  | 256b 
-		[0x37f2 - 0x37f5] |  pallete background     | 4b
-		[0x37f6 - 0x37f9] |  pallete sprites        | 4b
-		[0x37fa - 0x37fa] |  background x scrolling | 1b
-		[0x37fb - 0x37fb] |  background y scrolling | 1b
-	rom:                |                         |
-		[0x37fc - 0xfffb] |  general purpose        | 50kb (51200b)
-		[0xfffc - 0xfffd] |  reset inter. addr      | 2b
-		[0xfffe - 0xffff] |  vblnk inter. addr      | 2b
+		------------------|------------------------|----------------
+		     address      |      tiled mode        |     amount
+		------------------|------------------------|----------------
+	cpu:                |                        |
+		[0x0000 - 0x1fff] | ram                    | 8kb   (8192b)
+		[0x2000 - 0x20ff] | stack                  | 256b
+		[0x2100 - 0x21f1] | I/O                    | 242b
+	rpu:                |                        |
+		[0x21f2 - 0x29f1] | tiles background       | 2kb   (2048b)
+		[0x29f2 - 0x31f1] | tiles sprites          | 2kb   (2048b)
+		[0x31f2 - 0x32f1] | sprites                | 256b
+		[0x32f2 - 0x33f1] | background 00          | 256b
+		[0x33f2 - 0x34f1] | background 01          | 256b
+		[0x34f2 - 0x35f1] | background 10          | 256b
+		[0x35f2 - 0x36f1] | background 11          | 256b
+		[0x36f2 - 0x37f1] | background attributes  | 256b 
+		[0x37f2 - 0x37f5] | pallete background     | 4b
+		[0x37f6 - 0x37f9] | pallete sprites        | 4b
+		[0x37fa - 0x37fa] | background x scrolling | 1b
+		[0x37fb - 0x37fb] | background y scrolling | 1b
+	rom:                |                        |
+		[0x37fc - 0xfffb] | general purpose        | 50kb (51200b)
+		[0xfffc - 0xfffd] | reset inter. addr      | 2b
+		[0xfffe - 0xffff] | vblnk inter. addr      | 2b
+
+maybe future memory layout:
+		------------------|------------------------|------------------------|----------------
+		     address      |      tiled mode        |      pixel mode        |     amount
+		------------------|------------------------|------------------------|----------------
+	cpu:                |                        |                        |
+		[0x0000 - 0x1fff] | ram                    | ram                    | 8kb   (8192b)
+		[0x2000 - 0x20ff] | stack                  | stack                  | 256b
+		[0x2100 - 0x21f0] | I/O                    | I/O                    | 241b
+	rpu:                |                        |                        |
+		[0x21f1 - 0x29f0] | tiles background       | first half of screen   | 2kb   (2048b)
+		[0x29f1 - 0x31f0] | tiles sprites          | last  half of screen   | 2kb   (2048b)
+		[0x31f1 - 0x32f0] | sprites                | ram                    | 256b
+		[0x32f1 - 0x33f0] | background 00          | ram                    | 256b
+		[0x33f1 - 0x34f0] | background 01          | ram                    | 256b
+		[0x34f1 - 0x35f0] | background 10          | ram                    | 256b
+		[0x35f1 - 0x36f0] | background 11          | ram                    | 256b
+		[0x36f1 - 0x37f0] | background attributes  | ram                    | 256b 
+		[0x37f1 - 0x37f4] | pallete background     | ram                    | 4b
+		[0x37f5 - 0x37f8] | pallete sprites        | ram                    | 4b
+		[0x37f9 - 0x37f9] | background x scrolling | ram                    | 1b
+		[0x37fa - 0x37fa] | background y scrolling | ram                    | 1b
+	rom:                |                        |                        |
+		[0x37fb - 0xfffa] | general purpose        | general purpose        | 50kb (51200b)
+		[0xfffb - 0xfffc] | reset inter. addr      | reset inter. addr      | 2b
+		[0xfffd - 0xfffe] | vblnk inter. addr      | vblnk inter. addr      | 2b
+		[0xffff - 0xffff] | render mode            | render mode            | 2b
+
+
+111  
+ 1010
+ 0111
+ ----
+ 0011
+
+ 111 
+ 0101 ->  5
+ 1011 -> -5
+ ----
+ 0000 ->  0
+
+0101
+1010
+
+0101
+
+
+(~xxxx ^ 0001) ->
+
 
 
 registers: x  y  z  f  s  p
