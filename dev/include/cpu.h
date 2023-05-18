@@ -8,7 +8,7 @@ enum opcode {
 	TYZ, TYX, TXZ, TXY, SZY, SZX, SXY, SEC, SEV, CLC, CLV, SHR, SHL, ROR, ROL,
 	AND, LOR, XOR, INC, DEC, ADC, SBC, LDZ, STZ, LDX, STX, LDY, STY, JTS, JMP,
 	JEQ, JLE, JGR, JNE, JNL, JNG, JPV, JNV, JPN, JNN, JPC, JNC, CMP, CPX, CPY,
-	INSTRUCTION_COUNT
+	OPCODE_COUNT
 };
 
 enum addrmd {
@@ -17,8 +17,8 @@ enum addrmd {
 };
 
 enum interrupt {
-	START_VECTOR,
-	FRAME_VECTOR,
+	RESET_VECTOR,
+	VBLNK_VECTOR,
 	INTERRUPT_COUNT
 };
 
@@ -27,5 +27,7 @@ void cpu_print_registers(void);
 void cpu_disassemble(void);
 void cpu_startup(void);
 b8   cpu_clock(void);
+i32  cpu_opcode_get(const i8 *str, u32 str_size);
+u8   cpu_instruction_get(enum opcode opcode, enum addrmd addrmd);
 
 #endif/*__CPU_H__*/

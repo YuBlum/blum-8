@@ -206,26 +206,26 @@ memory layout:
 		address           |  usage                  | amount
 		------------------|-------------------------|----------------
 	cpu:                |                         |
-		[0x0000 - 0x07ff] |  ram                    | 2kb   (2048b)
-		[0x0800 - 0x08ff] |  stack                  | 256b
-		[0x0900 - 0x09ff] |  I/O                    | 241b
+		[0x0000 - 0x1fff] |  ram                    | 8kb   (8192b)
+		[0x2000 - 0x20ff] |  stack                  | 256b
+		[0x2100 - 0x21f1] |  I/O                    | 242b
 	rpu:                |                         |
-		[0x09f1 - 0x11f0] |  tiles background       | 2kb   (2048b)
-		[0x11f1 - 0x19f0] |  tiles sprites          | 2kb   (2048b)
-		[0x19f1 - 0x1af0] |  sprites                | 256b
-		[0x1af1 - 0x1bf0] |  background 00          | 256b
-		[0x1bf1 - 0x1cf0] |  background 01          | 256b
-		[0x1cf1 - 0x1df0] |  background 10          | 256b
-		[0x1df1 - 0x1ef0] |  background 11          | 256b
-		[0x1ef1 - 0x1ff0] |  background attributes  | 256b 
-		[0x1ff1 - 0x1ff4] |  pallete background     | 4b
-		[0x1ff5 - 0x1ff8] |  pallete sprites        | 4b
-		[0x1ff9 - 0x1ff9] |  background x scrolling | 1b
-		[0x1ffa - 0x1ffa] |  background y scrolling | 1b
+		[0x21f2 - 0x29f1] |  tiles background       | 2kb   (2048b)
+		[0x29f2 - 0x31f1] |  tiles sprites          | 2kb   (2048b)
+		[0x31f2 - 0x32f1] |  sprites                | 256b
+		[0x32f2 - 0x33f1] |  background 00          | 256b
+		[0x33f2 - 0x34f1] |  background 01          | 256b
+		[0x34f2 - 0x35f1] |  background 10          | 256b
+		[0x35f2 - 0x36f1] |  background 11          | 256b
+		[0x36f2 - 0x37f1] |  background attributes  | 256b 
+		[0x37f2 - 0x37f5] |  pallete background     | 4b
+		[0x37f6 - 0x37f9] |  pallete sprites        | 4b
+		[0x37fa - 0x37fa] |  background x scrolling | 1b
+		[0x37fb - 0x37fb] |  background y scrolling | 1b
 	rom:                |                         |
-		[0x1ffb - 0x1ffc] |  start inter. addr      | 2b
-		[0x1ffd - 0x1ffe] |  frame inter. addr      | 2b
-		[0x1fff - 0xffff] |  general purpose        | 56kb (57344b)
+		[0x37fc - 0x37fd] |  reset inter. addr      | 2b
+		[0x37fe - 0x37ff] |  vblnk inter. addr      | 2b
+		[0x3800 - 0xffff] |  general purpose        | 50kb (51200b)
 
 
 registers: x  y  z  f  s  p
@@ -245,6 +245,41 @@ verify if high nibble is odd or even = low nibble * 2 = 16 * 2 = 32
 
 60 - 26 = 34
 
+
+
+n -- o -- p
+i -- n -- x, y, c
+d -- e -- x, y, c
+z -- r -- x, y
+p -- s -- h, f
+  |- o -- p, f
+r -- e -- t
+  |- t -- i
+	|- o -- r, l
+t -- z -- x, y
+  |- y -- x, z
+  |- x -- y, z
+s -- z -- x, y
+  |- x -- y
+	|- e -- c, v
+	|- h -- r, l
+	|- b -- c
+	|- t -- z, x, y
+c -- l -- c, v
+  |- m -- p
+	|- p -- x, y
+a -- n -- d
+  |- d -- c
+l -- o -- r
+  |- d -- z, x, y
+x -- o -- r
+j -- m -- p
+  |- e -- q
+  |- t -- s
+  |- l -- e
+  |- g -- r
+  |- n -- e, l, g, v, n, c
+	|- p -- v, n, c
 
 opcodes:
 	--------|------------------------------------------------|------------------------------------------------

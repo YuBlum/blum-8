@@ -30,7 +30,7 @@ struct instruction {
 	enum addrmd addrmd;
 };
 
-static char *opcode_name[] = {
+static i8 *opcode_name[] = {
 	"nop", "inx", "dex", "iny", "dey", "zrx", "zry", "psh", "pop", "psf", "pof", "ret", "rti", "tzy", "tzx",
 	"tyz", "tyx", "txz", "txy", "szy", "szx", "sxy", "sec", "sev", "clc", "clv", "shr", "shl", "ror", "rol",
 	"and", "lor", "xor", "inc", "dec", "adc", "sbc", "ldz", "stz", "ldx", "stx", "ldy", "sty", "jts", "jmp",
@@ -46,8 +46,8 @@ static char *addrmd_name[] = {
 
 static struct instruction inst[0x100];
 static u16 interrupts[INTERRUPT_COUNT] = {
-	[START_VECTOR] = ROM_BEGIN,
-	[FRAME_VECTOR] = ROM_BEGIN + 2
+	[RESET_VECTOR] = ROM_BEGIN,
+	[VBLNK_VECTOR] = ROM_BEGIN + 2
 };
 
 #define FLAG_GET(FLAG) ((f & (1 << FLAG)) != 0)
@@ -109,7 +109,7 @@ cpu_startup(void) {
 				}
 				break;
 			case ADR:
-				inst[i.b].opcode = (i.b - 0xd0 + SHR) % INSTRUCTION_COUNT;
+				inst[i.b].opcode = (i.b - 0xd0 + SHR) % OPCODE_COUNT;
 				break;
 		}
 		/*printf("%.2x %s %s\n", i.b, opcode_name[inst[i.b].opcode], addrmd_name[inst[i.b].addrmd]);*/
@@ -418,4 +418,22 @@ cpu_clock(void) {
 			break;
 	}
 	return 1;
+}
+
+i32
+cpu_opcode_get(const i8 *str, u32 str_size) {
+	if (str_size != 3) return -1;
+	for (i32 i = 0; i < OPCODE_COUNT; i++) {
+		if (str[0] == opcode_name[i][0] && str[1] == opcode_name[i][1] && str[2] == opcode_name[i][2])
+			return i;
+	}
+	return -1;
+}
+
+u8
+cpu_instruction_get(enum opcode opcode, enum addrmd addrmd) {
+	for (u32 i = 0; i < 0x100; i++) {
+		if (inst[i].opcode == opcode && inst[i].addrmd == addrmd) return i;
+	}
+	return 0;
 }

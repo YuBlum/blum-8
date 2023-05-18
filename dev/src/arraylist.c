@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <arraylist.h>
@@ -11,6 +12,10 @@ struct arraylist_header {
 void *
 arraylist_alloc(u32 type_size) {
 	struct arraylist_header *header = malloc(sizeof (struct arraylist_header) + type_size);
+	if (!header) {
+		fprintf(stderr, "error: couldn't allocate memory for the arraylist\n");
+		exit(1);
+	}
 	header->size = 0;
 	header->allc = 1;
 	header->type = type_size;
@@ -20,12 +25,14 @@ arraylist_alloc(u32 type_size) {
 void *
 arraylist_push(void *list, void *value) {
 	struct arraylist_header *header = ((struct arraylist_header *)list) - 1;
-	if (header->allc < header->size) {
+	if (header->allc <= header->size) {
 		header->allc *= 2;
 		header = realloc(header, sizeof (struct arraylist_header) + header->type * header->allc);
 	}
-	memcpy(((u8 *)(header + 1)) + header->size++ * header->type, value, header->type);
-	return header + 1;
+	list = header + 1;
+	memcpy(list + header->size * header->type, value, header->type);
+	header->size++;
+	return list;
 }
 
 void
