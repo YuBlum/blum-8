@@ -165,12 +165,12 @@ cpu ram + rpu ram + cartridge rom = 64kb
 
 tiles attributes:
 	bit (0, 1) palette index
-	bit 2         transparent
-	bit 3         flipx
-	bit 4         flipy
-	bit 5         rot90
-	bit 6         sprite ? below   : unused
-	bit 7         sprite ? enabled : unused
+	bit 2      transparent
+	bit 3      flipx
+	bit 4      flipy
+	bit 5      rot90
+	bit 6      sprite ? below   : unused
+	bit 7      sprite ? enabled : unused
 sprite tile: (4 bytes)
 	position (x, y)  = 2 bytes
 	tile index       = 1 byte
@@ -208,24 +208,22 @@ memory layout:
 	cpu:                |                        |
 		[0x0000 - 0x1fff] | ram                    | 8kb   (8192b)
 		[0x2000 - 0x20ff] | stack                  | 256b
-		[0x2100 - 0x21f1] | I/O                    | 242b
+		[0x2100 - 0x21ed] | I/O                    | 238b
 	rpu:                |                        |
-		[0x21f2 - 0x29f1] | tiles background       | 2kb   (2048b)
-		[0x29f2 - 0x31f1] | tiles sprites          | 2kb   (2048b)
-		[0x31f2 - 0x32f1] | sprites                | 256b
-		[0x32f2 - 0x33f1] | background 00          | 256b
-		[0x33f2 - 0x34f1] | background 01          | 256b
-		[0x34f2 - 0x35f1] | background 10          | 256b
-		[0x35f2 - 0x36f1] | background 11          | 256b
-		[0x36f2 - 0x37f1] | background attributes  | 256b 
-		[0x37f2 - 0x37f5] | pallete background     | 4b
-		[0x37f6 - 0x37f9] | pallete sprites        | 4b
-		[0x37fa - 0x37fa] | background x scrolling | 1b
-		[0x37fb - 0x37fb] | background y scrolling | 1b
+		[0x21ee - 0x29ed] | tiles background       | 2kb   (2048b)
+		[0x29ee - 0x31ed] | tiles sprites          | 2kb   (2048b)
+		[0x31ee - 0x32ed] | sprites                | 256b
+		[0x32ee - 0x33ed] | background 00          | 256b
+		[0x33ee - 0x34ed] | background 01          | 256b
+		[0x34ee - 0x35ed] | background 10          | 256b
+		[0x35ee - 0x36ed] | background 11          | 256b
+		[0x36ee - 0x37ed] | background attributes  | 256b 
+		[0x37ee - 0x37f5] | pallete background     | 8b
+		[0x37f6 - 0x37fd] | pallete sprites        | 8b
+		[0x37fe - 0x37fe] | background x scrolling | 1b
+		[0x37ff - 0x37ff] | background y scrolling | 1b
 	rom:                |                        |
-		[0x37fc - 0xfffb] | general purpose        | 50kb (51200b)
-		[0xfffc - 0xfffd] | reset inter. addr      | 2b
-		[0xfffe - 0xffff] | vblnk inter. addr      | 2b
+		[0x3800 - 0xffff] | general purpose        | 50kb (51200b)
 
 maybe future memory layout:
 		------------------|------------------------|------------------------|----------------

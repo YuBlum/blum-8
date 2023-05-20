@@ -51,10 +51,10 @@ static u32 screen_buffer[GAME_SIZE*GAME_SIZE];
 static u32 screen;
 
 static u32 color_palette[] = {
-	0x1a1717, 0x8d8383, 0xd3c1c1, 0xede5e5,
-	0x6c2c9e, 0x7958c1, 0x7a84d3, 0x92afed,
-	0xe5c1d4, 0xe588a6, 0xc15133, 0x8d1e1e,
-	0xe5dc38, 0xa2d34e, 0x4bb93e, 0x27953f,
+	0x1a1717, 0x8d8383, 0xd3c1c1, 0xede5e5, /*00:#1a1717 01:#8d8383 02:#d3c1c1 03:#ede5e5*/
+	0x92afed, 0x7a84d3, 0x7958c1, 0x6c2c9e, /*04:#92afed 05:#7a84d3 06:#7958c1 07:#6c2c9e*/
+	0x8d1e1e, 0xc15133, 0xe588a6, 0xe5c1d4, /*08:#8d1e1e 09:#c15133 10:#e588a6 11:#e5c1d4*/
+	0x27953f, 0x4bb93e, 0xa2d34e, 0xfaff6b, /*12:#27953f 13:#4bb93e 14:#a2d34e 15:#faff6b*/
 };
 
 static u32
@@ -167,6 +167,7 @@ renderer_begin(void) {
 	gl_vertex_attrib_pointer(1, 2, GL_FLOAT, 0, sizeof (f32) * 4, (void *)(sizeof (f32) * 2));
 	gl_enable_vertex_attrib_array(1);
 	/* create screen texture */
+	memset(screen_buffer, color_palette[0], GAME_SIZE*GAME_SIZE*sizeof(u32));
 	gl_gen_textures(1, &screen);
 	gl_bind_texture(GL_TEXTURE_2D, screen);
 	gl_tex_parameter_i(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -184,17 +185,9 @@ renderer_update_screen(void) {
 	gl_tex_sub_image_2d(GL_TEXTURE_2D, 0, 0, 0, GAME_SIZE, GAME_SIZE, GL_BGRA, GL_UNSIGNED_BYTE, screen_buffer);
 }
 
-static u32 offset = 0;
 
 void
 renderer_update(void) {
-	offset++;
-	for (u32 i = 0; i < GAME_SIZE; i++) {
-		for (u32 j = 0; j < GAME_SIZE; j++) {
-			renderer_pixel_set(i + 0, j + 0, (((i + j) - (offset >> 1)) >> 1) & 0xf);
-		}
-	}
-	renderer_update_screen();
 	gl_draw_elements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 }
 

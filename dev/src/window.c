@@ -1,9 +1,14 @@
-#include <renderer.h>
-#include <window.h>
-#include <config.h>
+#include <os.h>
+#include <cpu.h>
+#include <rpu.h>
 #include <glfw3.h>
 #include <stdio.h>
-#include <os.h>
+#include <stdlib.h>
+#include <config.h>
+#include <window.h>
+#include <pthread.h>
+#include <renderer.h>
+#include <assembler.h>
 
 static void *window;
 
@@ -21,6 +26,8 @@ window_open(void) {
 	void *(*glfw_get_primary_monitor)(void)                           = glfw_func("glfwGetPrimaryMonitor");
 	void *(*glfw_get_video_mode)(void *)                              = glfw_func("glfwGetVideoMode");
 	void *(*glfw_set_window_pos)(void *, i32, i32)                    = glfw_func("glfwSetWindowPos");
+	cpu_startup();
+	if (assemble("program.s")) exit(1);
 	if (!glfw_init()) {
 		const i8 *error;
 		glfw_get_error(&error);
@@ -51,7 +58,10 @@ window_open(void) {
 	glfw_make_context_current(window);
 	glfw_set_window_pos(window, vidmode->width * 0.5f - WINDOW_SIZE * 0.5f, vidmode->height * 0.5f - WINDOW_SIZE * 0.5f);
 	renderer_begin();
+	pthread_t cpu_thread;
+	pthread_create(&cpu_thread, NULL, cpu_update, NULL);
 	while (!glfw_window_should_close(window)) {
+		rpu_update();
 		renderer_update();
 		glfw_poll_events();
 		glfw_swap_buffers(window);

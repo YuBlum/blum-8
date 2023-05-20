@@ -16,18 +16,12 @@ enum addrmd {
 	ZPY, ADR, ADX, ADY,
 };
 
-enum interrupt {
-	RESET_VECTOR,
-	VBLNK_VECTOR,
-	INTERRUPT_COUNT
-};
-
-void cpu_interrupt(enum interrupt interrupt);
-void cpu_print_registers(void);
-void cpu_disassemble(void);
-void cpu_startup(void);
-b8   cpu_clock(void);
-i32  cpu_opcode_get(const i8 *str, u32 str_size);
-u8   cpu_instruction_get(enum opcode opcode, enum addrmd addrmd);
+void  cpu_print_registers(void);
+void  cpu_disassemble(void);
+void  cpu_startup(void);
+b8    cpu_clock(void);
+i32   cpu_opcode_get(const i8 *str, u32 str_size);
+u8    cpu_instruction_get(enum opcode opcode, enum addrmd addrmd);
+void *cpu_update(void *);
 
 #endif/*__CPU_H__*/

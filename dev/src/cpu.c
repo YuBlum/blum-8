@@ -45,26 +45,12 @@ static char *addrmd_name[] = {
 */
 
 static struct instruction inst[0x100];
-static u16 interrupts[INTERRUPT_COUNT] = {
-	[RESET_VECTOR] = ROM_BEGIN,
-	[VBLNK_VECTOR] = ROM_BEGIN + 2
-};
 
 #define FLAG_GET(FLAG) ((f >> FLAG) & 1)
 #define FLAG_SET(FLAG, VAL) do {\
 	if (VAL) f |=  (1 << (FLAG));\
 	else     f &= ~(1 << (FLAG));\
 } while(0)
-
-void
-cpu_interrupt(enum interrupt interrupt) {
-	if (interrupt != RESET_VECTOR) {
-		bus_write_byte(0x0800 + s--, p >> 8);
-		bus_write_byte(0x0800 + s--, p & 0xff);
-		bus_write_byte(0x0800 + s--, f);
-	}
-	p = bus_read_word(interrupts[interrupt]);
-}
 
 void
 cpu_startup(void) {
@@ -152,8 +138,10 @@ cpu_clock(void) {
 		clock--;
 		return 0;
 	}
+	/*
 	cpu_print_registers();
 	cpu_disassemble();
+		*/
 	u16 addr = 0;
 	b8  usez = 0;
 	u16 word;
@@ -215,12 +203,6 @@ cpu_clock(void) {
 		case PSF: bus_write_byte(0x0800 + s--, f); clock += 1; break;
 		case POF: f = bus_read_byte(0x0800 + ++f); clock += 2; break;
 		case RET:
-			p  = bus_read_byte(0x0800 + ++s)  & 0x00ff;
-			p |= bus_read_byte(0x0800 + ++s) << 8;
-			clock += 4;
-			break;
-		case RTI:
-			s  = bus_read_byte(0x0800 + ++s);
 			p  = bus_read_byte(0x0800 + ++s)  & 0x00ff;
 			p |= bus_read_byte(0x0800 + ++s) << 8;
 			clock += 4;
@@ -440,4 +422,10 @@ cpu_instruction_get(enum opcode opcode, enum addrmd addrmd) {
 		if (inst[i].opcode == opcode && inst[i].addrmd == addrmd) return i;
 	}
 	return 0;
+}
+
+void *
+cpu_update(void *) {
+	while (1) cpu_clock();
+	return NULL;
 }

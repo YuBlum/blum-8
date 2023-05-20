@@ -1,4 +1,4 @@
-reset
+jmp start
 
 div: ; x / y -> x: result, y: remainder
 	ldz $60 psh  ; pushes previous stuff of $60 into the stack
@@ -22,7 +22,7 @@ div_end:
 	pop stz $60  ; stores back the stuff of $60
 	ret          ; returns to the main program
 
-reset:
+start:
 	ldx %0f
 loop:
 	txz psh
