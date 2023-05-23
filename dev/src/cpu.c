@@ -1,3 +1,4 @@
+#include <os.h>
 #include <cpu.h>
 #include <bus.h>
 #include <stdio.h>
@@ -8,13 +9,15 @@
 #define L 2
 #define N 3
 #define V 4
+#define D 5
 
-static u8  x;
-static u8  y;
-static u8  z;
-static u8  f;
-static u8  s = 0xff;
-static u16 p = ROM_BEGIN;
+static u8  x; /* x       register */
+static u8  y; /* y       register */
+static u8  z; /* z       register */
+static u8  f; /* flags   register */
+static u8  s; /* stack   register */
+static u16 t; /* timer   register */
+static u16 p; /* pointer register */
 static u8  clock;
 
 union byte {
@@ -31,10 +34,13 @@ struct instruction {
 };
 
 static i8 *opcode_name[] = {
-	"nop", "inx", "dex", "iny", "dey", "zrx", "zry", "psh", "pop", "psf", "pof", "ret", "rti", "tzy", "tzx",
-	"tyz", "tyx", "txz", "txy", "szy", "szx", "sxy", "sec", "sev", "clc", "clv", "shr", "shl", "ror", "rol",
-	"and", "lor", "xor", "inc", "dec", "adc", "sbc", "ldz", "stz", "ldx", "stx", "ldy", "sty", "jts", "jmp",
-	"jeq", "jle", "jgr", "jne", "jnl", "jng", "jpv", "jnv", "jpn", "jnn", "jpc", "jnc", "cmp", "cpx", "cpy"
+	"nop", "inx", "dex", "iny", "dey", "zrx", "zry", "psh", "pop",
+	"psf", "pof", "ret", "ext", "dly", "tzy", "tzx", "tyz", "tyx",
+	"txz", "txy", "szy", "szx", "sxy", "sec", "sev", "clc", "clv",
+	"shr", "shl", "ror", "rol", "and", "lor", "xor", "inc", "dec",
+	"adc", "sbc", "ldz", "stz", "ldx", "stx", "ldy", "sty", "jts",
+	"jmp", "jeq", "jle", "jgr", "jne", "jnl", "jng", "jpv", "jnv",
+	"jpn", "jnn", "jpc", "jnc", "cmp", "cpx", "cpy"
 };
 
 /*
@@ -54,6 +60,7 @@ static struct instruction inst[0x100];
 
 void
 cpu_startup(void) {
+	p = ROM_BEGIN;
 	b8 carry = 0;
 	for (union byte i = { 0 }; i.b || !carry; carry = (u8)(++i.b) == 0) {
 		     if (i.h == 0x0 || i.h == 0x1) inst[i.b].addrmd = NOA;
@@ -115,28 +122,10 @@ cpu_print_registers(void) {
 }
 
 void
-cpu_disassemble(void) {
-	u8 idx = bus_read_byte(p);
-	printf("[%.4x] %s", p, opcode_name[inst[idx].opcode]);
-	switch (inst[idx].addrmd) {
-		case NOA:                                                break;
-		case CST: printf(" 0x%.2x",       bus_read_byte(p + 1)); break;
-		case ZPG: printf(" [0x%.2x]",     bus_read_byte(p + 1)); break;
-		case ZPX: printf(" [0x%.2x + x]", bus_read_byte(p + 1)); break;
-		case ZPY: printf(" [0x%.2x + y]", bus_read_byte(p + 1)); break;
-		case ADR: printf(" [0x%.4x]",     bus_read_word(p + 1)); break;
-		case ADX: printf(" [0x%.4x + x]", bus_read_word(p + 1)); break;
-		case ADY: printf(" [0x%.4x + y]", bus_read_word(p + 1)); break;
-		default:  printf(" ????");                               break;
-	}
-	putchar('\n');
-}
-
-b8
-cpu_clock(void) {
+cpu_tick(void) {
 	if (clock > 0) {
 		clock--;
-		return 0;
+		return;
 	}
 	/*
 	cpu_print_registers();
@@ -147,17 +136,22 @@ cpu_clock(void) {
 	u16 word;
 	u8  byte;
 	u8  idx = bus_read_byte(p);
+	if (FLAG_GET(D)) {
+		//printf("%u\n", t);
+		FLAG_SET(D, --t != 0);
+		return;
+	}
 	p++;
 	switch (inst[idx].addrmd) {
-		case NOA: usez = 1;                            clock = 2; break;
-		case CST: addr = p++;                          clock = 2; break;
-		case ZPG: addr = bus_read_byte(p++);           clock = 2; break;
-		case ZPX: addr = bus_read_byte(p++) + x;       clock = 2; break;
-		case ZPY: addr = bus_read_byte(p++) + y;       clock = 2; break;
-		case ADR: addr = bus_read_word(p);     p += 2; clock = 3; break;
-		case ADX: addr = bus_read_word(p) + x; p += 2; clock = 3; break;
-		case ADY: addr = bus_read_word(p) + y; p += 2; clock = 3; break;
-		default: assert(0);                                      break;
+		case NOA: usez = 1;                    clock = 2;                                             break;
+		case CST: addr = p++;                  clock = 2;                                             break;
+		case ZPG: addr = bus_read_byte(p++);   clock = 3;                                             break;
+		case ADR: addr = bus_read_word(p);     clock = 4;                                     p += 2; break;
+		case ZPX: addr = bus_read_byte(p) + x; clock = 4 + ((0xff00 & addr) != (0xff00 & p)); p += 1; break;
+		case ZPY: addr = bus_read_byte(p) + y; clock = 4 + ((0xff00 & addr) != (0xff00 & p)); p += 1; break;
+		case ADX: addr = bus_read_word(p) + x; clock = 5 + ((0xff00 & addr) != (0xff00 & p)); p += 2; break;
+		case ADY: addr = bus_read_word(p) + y; clock = 5 + ((0xff00 & addr) != (0xff00 & p)); p += 2; break;
+		default: assert(0);                                                                           break;
 	}
 	switch (inst[idx].opcode) {
 		case NOP:
@@ -184,28 +178,39 @@ cpu_clock(void) {
 			break;
 		case ZRX:
 			x ^= x;
+			FLAG_SET(Z, 1);
 			FLAG_SET(N, 0);
 			break;
 		case ZRY:
 			y ^= y;
+			FLAG_SET(Z, 1);
 			FLAG_SET(N, 0);
 			break;
 		case PSH:
-			bus_write_byte(0x0800 + s--, z);
-			clock++;
+			bus_write_byte(STACK_BEGIN + s--, z);
 			break;
 		case POP:
-			z = bus_read_byte(0x0800 + ++s);
+			z = bus_read_byte(STACK_BEGIN + ++s);
 			FLAG_SET(Z, !z);
 			FLAG_SET(N, z & 0x80);
-			clock += 2;
+			clock++;
 			break;
-		case PSF: bus_write_byte(0x0800 + s--, f); clock += 1; break;
-		case POF: f = bus_read_byte(0x0800 + ++f); clock += 2; break;
+		case PSF: bus_write_byte(STACK_BEGIN + s--, f); clock += 1; break;
+		case POF: f = bus_read_byte(STACK_BEGIN + ++f); clock += 2; break;
 		case RET:
-			p  = bus_read_byte(0x0800 + ++s)  & 0x00ff;
-			p |= bus_read_byte(0x0800 + ++s) << 8;
-			clock += 4;
+			p  = bus_read_byte(STACK_BEGIN + ++s)  & 0x00ff;
+			p |= bus_read_byte(STACK_BEGIN + ++s) << 8;
+			clock += 3;
+			break;
+		case EXT:
+			f  = bus_read_byte(STACK_BEGIN + ++s);
+			p  = bus_read_byte(STACK_BEGIN + ++s)  & 0x00ff;
+			p |= bus_read_byte(STACK_BEGIN + ++s) << 8;
+			clock += 3;
+			break;
+		case DLY:
+			t = x << 8 | y;
+			FLAG_SET(D, t);
 			break;
 		case TZY: y = z;                  break;
 		case TZX: x = z;                  break;
@@ -234,7 +239,6 @@ cpu_clock(void) {
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
 			bus_write_byte(addr, byte);
-			clock += 3;
 			break;
 		case SHL:
 			if (usez) {
@@ -250,7 +254,6 @@ cpu_clock(void) {
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
 			bus_write_byte(addr, byte);
-			clock += 3;
 			break;
 		case ROR:
 			if (usez) {
@@ -264,7 +267,6 @@ cpu_clock(void) {
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
 			bus_write_byte(addr, byte);
-			clock += 3;
 			break;
 		case ROL:
 			if (usez) {
@@ -278,36 +280,30 @@ cpu_clock(void) {
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
 			bus_write_byte(addr, byte);
-			clock += 3;
 			break;
 		case AND:
 			z &= bus_read_byte(addr);
-			clock++;
 			FLAG_SET(Z, !z);
 			FLAG_SET(N, z & 0x80);
 			break;
 		case LOR:
 			z |= bus_read_byte(addr);
-			clock++;
 			FLAG_SET(Z, !z);
 			FLAG_SET(N, z & 0x80);
 			break;
 		case XOR:
 			z ^= bus_read_byte(addr);
-			clock++;
 			FLAG_SET(Z, !z);
 			FLAG_SET(N, z & 0x80);
 			break;
 		case INC:
 			byte = bus_read_byte(addr) + 1;
-			clock++;
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
 			bus_write_byte(addr, byte);
 			break;
 		case DEC:
 			byte = bus_read_byte(addr) - 1;
-			clock++;
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
 			bus_write_byte(addr, byte);
@@ -320,7 +316,6 @@ cpu_clock(void) {
 			FLAG_SET(N, word & 0x80);
 			FLAG_SET(V, (((z^word))&~(z^byte)) & 0x80);
 			z = word & 0xff;
-			clock += 3;
 			break;
 		case SBC:
 			byte = bus_read_byte(addr);
@@ -330,88 +325,79 @@ cpu_clock(void) {
 			FLAG_SET(N, word & 0x80);
 			FLAG_SET(V, (((z^word))&~(z^byte)) & 0x80);
 			z = word & 0xff;
-			clock += 3;
 			break;
 		case LDZ: 
 			z = bus_read_byte(addr);
 			FLAG_SET(Z, !z);
 			FLAG_SET(N, z & 0x80);
-			clock++;
 			break;
 		case STZ:
 			bus_write_byte(addr, z);
-			clock++;
 			break;
 		case LDX:
 			x = bus_read_byte(addr);
 			FLAG_SET(Z, !x);
 			FLAG_SET(N, x & 0x80);
-			clock++;
 			break;
 		case STX:
 			bus_write_byte(addr, x);
-			clock++;
 			break;
 		case LDY:
 			y = bus_read_byte(addr);
 			FLAG_SET(Z, !y);
 			FLAG_SET(N, y & 0x80);
-			clock++;
 			break;
 		case STY:
 			bus_write_byte(addr, y);
-			clock++;
 			break;
 		case JTS:
-			bus_write_byte(0x0800 + s--, p >> 8);
-			bus_write_byte(0x0800 + s--, p & 0xff);
+			bus_write_byte(STACK_BEGIN + s--, p >> 8);
+			bus_write_byte(STACK_BEGIN + s--, p & 0xff);
 			p = addr;
-			clock += 4;
+			clock += 3;
 			break;
-		case JMP:                                   p = addr; clock += 3; break;
-		case JEQ: if ( FLAG_GET(Z)                ) p = addr; clock += 3; break;
-		case JLE: if ( FLAG_GET(L)                ) p = addr; clock += 3; break;
-		case JGR: if (!FLAG_GET(L) && !FLAG_GET(Z)) p = addr; clock += 3; break;
-		case JNE: if (!FLAG_GET(Z)                ) p = addr; clock += 3; break;
-		case JNL: if (!FLAG_GET(L)                ) p = addr; clock += 3; break;
-		case JNG: if ( FLAG_GET(L) ||  FLAG_GET(Z)) p = addr; clock += 3; break;
-		case JPV: if ( FLAG_GET(V)                ) p = addr; clock += 3; break;
-		case JNV: if (!FLAG_GET(V)                ) p = addr; clock += 3; break;
-		case JPN: if ( FLAG_GET(N)                ) p = addr; clock += 3; break;
-		case JNN: if (!FLAG_GET(N)                ) p = addr; clock += 3; break;
-		case JPC: if ( FLAG_GET(C)                ) p = addr; clock += 3; break;
-		case JNC: if (!FLAG_GET(C)                ) p = addr; clock += 3; break;
+		case JMP:                                     p = addr; clock++;   break;
+		case JEQ: if ( FLAG_GET(Z)                ) { p = addr; clock++; } break;
+		case JLE: if ( FLAG_GET(L)                ) { p = addr; clock++; } break;
+		case JGR: if (!FLAG_GET(L) && !FLAG_GET(Z)) { p = addr; clock++; } break;
+		case JNE: if (!FLAG_GET(Z)                ) { p = addr; clock++; } break;
+		case JNL: if (!FLAG_GET(L)                ) { p = addr; clock++; } break;
+		case JNG: if ( FLAG_GET(L) ||  FLAG_GET(Z)) { p = addr; clock++; } break;
+		case JPV: if ( FLAG_GET(V)                ) { p = addr; clock++; } break;
+		case JNV: if (!FLAG_GET(V)                ) { p = addr; clock++; } break;
+		case JPN: if ( FLAG_GET(N)                ) { p = addr; clock++; } break;
+		case JNN: if (!FLAG_GET(N)                ) { p = addr; clock++; } break;
+		case JPC: if ( FLAG_GET(C)                ) { p = addr; clock++; } break;
+		case JNC: if (!FLAG_GET(C)                ) { p = addr; clock++; } break;
 		case CMP:
 			byte = z - bus_read_byte(addr);
 			FLAG_SET(Z, byte == 0);
 			FLAG_SET(L, byte & 0x80);
-			clock++;
 			break;
 		case CPX:
 			byte = x - bus_read_byte(addr);
 			FLAG_SET(Z, byte == 0);
 			FLAG_SET(L, byte & 0x80);
-			clock++;
 			break;
 		case CPY:
 			byte = y - bus_read_byte(addr);
 			FLAG_SET(Z, byte == 0);
 			FLAG_SET(L, byte & 0x80);
-			clock++;
 			break;
 		default:
 			assert(0);
 			break;
 	}
-	return 1;
 }
 
 i32
 cpu_opcode_get(const i8 *str, u32 str_size) {
 	if (str_size != 3) return -1;
 	for (i32 i = 0; i < OPCODE_COUNT; i++) {
-		if (str[0] == opcode_name[i][0] && str[1] == opcode_name[i][1] && str[2] == opcode_name[i][2])
-			return i;
+		if (
+			(str[0] == opcode_name[i][0]      && str[1] == opcode_name[i][1]      && str[2] == opcode_name[i][2]     ) ||
+			(str[0] == opcode_name[i][0] + 32 && str[1] == opcode_name[i][1] + 32 && str[2] == opcode_name[i][2] + 32)
+		) return i;
 	}
 	return -1;
 }
@@ -422,10 +408,4 @@ cpu_instruction_get(enum opcode opcode, enum addrmd addrmd) {
 		if (inst[i].opcode == opcode && inst[i].addrmd == addrmd) return i;
 	}
 	return 0;
-}
-
-void *
-cpu_update(void *) {
-	while (1) cpu_clock();
-	return NULL;
 }

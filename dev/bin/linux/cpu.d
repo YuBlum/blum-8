@@ -1,1 +1,2 @@
-bin/linux/cpu.o: src/cpu.c include/cpu.h include/types.h include/bus.h
+bin/linux/cpu.o: src/cpu.c include/os.h include/types.h include/cpu.h \
+ include/bus.h

@@ -11,6 +11,16 @@
 
 #define MAX(V1, V2) (V1 > V2 ? V1 : V2)
 
+struct constant {
+	const i8 *name;
+	u32       name_siz;
+	b8 is_word;
+	union {
+		u8  byte;
+		u16 word;
+	};
+};
+
 struct split {
 	const i8 *buf;
 	u32 siz;
@@ -38,6 +48,24 @@ struct label {
 };
 
 static struct label *labels;
+
+static struct constant predefined_constants[] = {
+	{ .name = "spr_attr",  .name_siz = 8, .is_word = 1, .word = SPR_ATTR  },
+	{ .name = "screen00",  .name_siz = 8, .is_word = 1, .word = SCREEN00  },
+	{ .name = "screen01",  .name_siz = 8, .is_word = 1, .word = SCREEN01  },
+	{ .name = "screen10",  .name_siz = 8, .is_word = 1, .word = SCREEN10  },
+	{ .name = "screen11",  .name_siz = 8, .is_word = 1, .word = SCREEN11  },
+	{ .name = "bg_attr",   .name_siz = 7, .is_word = 1, .word = BG_ATTR   },
+	{ .name = "in_out",    .name_siz = 6, .is_word = 1, .word = IN_OUT    },
+	{ .name = "bg_tiles",  .name_siz = 8, .is_word = 1, .word = BG_TILES  },
+	{ .name = "spr_tiles", .name_siz = 9, .is_word = 1, .word = SPR_TILES },
+	{ .name = "bg_pals",   .name_siz = 7, .is_word = 1, .word = BG_PALS   },
+	{ .name = "spr_pals",  .name_siz = 8, .is_word = 1, .word = SPR_PALS  },
+	{ .name = "scroll_x",  .name_siz = 8, .is_word = 1, .word = SCROLL_X  },
+	{ .name = "scroll_y",  .name_siz = 8, .is_word = 1, .word = SCROLL_Y  },
+	{ .name = "bg_tile",   .name_siz = 7, .is_word = 1, .word = BG_TILE   },
+};
+static u32 predefined_constants_amount = sizeof (predefined_constants) / sizeof (struct constant);
 
 i32 get_label(struct split string) {
 	for (u32 i = 0; i < arraylist_size(labels); i++) {
@@ -142,6 +170,25 @@ assemble_split:
 			tokens = arraylist_push(tokens, &(struct token) { TKN_STR, .string = splitted[i], .addrmd = CST });
 			continue;
 		}
+		b8 predefined_constant = 0;
+		for (u32 j = 0; j < predefined_constants_amount; j++) {
+			if (splitted[i].siz != predefined_constants[j].name_siz || strncmp(predefined_constants[j].name, splitted[i].buf, splitted[i].siz) != 0) continue;
+			u8 tkn_type = TKN_CST;
+			addrmd = CST;
+			code_size++;
+			if (predefined_constants[j].is_word) {
+				tkn_type = TKN_ADR;
+				addrmd = ZPG;
+				if (predefined_constants[j].word > 0xff) {
+					addrmd = ADR;
+					code_size++;
+				}
+			}
+			tokens = arraylist_push(tokens, &(struct token) { tkn_type, .word = predefined_constants[j].word, .addrmd = addrmd });
+			predefined_constant = 1;
+			break;
+		}
+		if (predefined_constant) continue;
 		switch (splitted[i].buf[0]) {
 			case '%':
 				if (i + 1 > arraylist_size(splitted) - 1) {
@@ -190,11 +237,10 @@ assemble_split:
 					error = 1;
 					goto assemble_end;
 				}
+				addrmd = ZPG;
+				code_size++;
 				if (hex > 0xff) {
 					addrmd = ADR;
-					code_size += 2;
-				} else {
-					addrmd = ZPG;
 					code_size++;
 				}
 				tokens = arraylist_push(tokens, &(struct token) { TKN_ADR, .word = hex, .addrmd = addrmd });

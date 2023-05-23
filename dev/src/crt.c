@@ -1,12 +1,12 @@
 #include <os.h>
+#include <crt.h>
 #include <GL/gl.h>
-#include <GL/glext.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <config.h>
-#include <renderer.h>
+#include <GL/glext.h>
 
 static void (*gl_clear_color)(f32, f32, f32, f32);
 static void (*gl_clear)(u32);
@@ -50,12 +50,8 @@ static u32 index_buffer;
 static u32 screen_buffer[GAME_SIZE*GAME_SIZE];
 static u32 screen;
 
-static u32 color_palette[] = {
-	0x1a1717, 0x8d8383, 0xd3c1c1, 0xede5e5, /*00:#1a1717 01:#8d8383 02:#d3c1c1 03:#ede5e5*/
-	0x92afed, 0x7a84d3, 0x7958c1, 0x6c2c9e, /*04:#92afed 05:#7a84d3 06:#7958c1 07:#6c2c9e*/
-	0x8d1e1e, 0xc15133, 0xe588a6, 0xe5c1d4, /*08:#8d1e1e 09:#c15133 10:#e588a6 11:#e5c1d4*/
-	0x27953f, 0x4bb93e, 0xa2d34e, 0xfaff6b, /*12:#27953f 13:#4bb93e 14:#a2d34e 15:#faff6b*/
-};
+static u32 electron_gun_x;
+static u32 electron_gun_y;
 
 static u32
 shader_create(u32 type, const i8 *name) {
@@ -91,7 +87,7 @@ shader_create(u32 type, const i8 *name) {
 }
 
 void
-renderer_begin(void) {
+crt_begin(void) {
 	/* load opengl functions */
 	void *(*glfw_get_proc_address)(const i8 *) = glfw_func("glfwGetProcAddress");
 	gl_clear_color                = glfw_get_proc_address("glClearColor");
@@ -167,7 +163,6 @@ renderer_begin(void) {
 	gl_vertex_attrib_pointer(1, 2, GL_FLOAT, 0, sizeof (f32) * 4, (void *)(sizeof (f32) * 2));
 	gl_enable_vertex_attrib_array(1);
 	/* create screen texture */
-	memset(screen_buffer, color_palette[0], GAME_SIZE*GAME_SIZE*sizeof(u32));
 	gl_gen_textures(1, &screen);
 	gl_bind_texture(GL_TEXTURE_2D, screen);
 	gl_tex_parameter_i(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -176,23 +171,24 @@ renderer_begin(void) {
 }
 
 void
-renderer_pixel_set(u32 x, u32 y, u8 color) {
-	screen_buffer[y * GAME_SIZE + x] = color_palette[color];
+crt_electron_gun_shoot(u32 rgb) {
+	electron_gun_x++;
+	if (electron_gun_x >= GAME_SIZE) {
+		electron_gun_x = 0;
+		electron_gun_y++;
+		if (electron_gun_y >= GAME_SIZE) electron_gun_y = 0;
+	}
+	screen_buffer[electron_gun_y * GAME_SIZE + electron_gun_x] = rgb;
 }
 
 void
-renderer_update_screen(void) {
+crt_update(void) {
 	gl_tex_sub_image_2d(GL_TEXTURE_2D, 0, 0, 0, GAME_SIZE, GAME_SIZE, GL_BGRA, GL_UNSIGNED_BYTE, screen_buffer);
-}
-
-
-void
-renderer_update(void) {
 	gl_draw_elements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 }
 
 void
-renderer_end(void) {
+crt_end(void) {
 	gl_delete_program(shader_program);
 	gl_delete_vertex_arrays(1, &vertex_array);
 	gl_delete_buffers(1, &vertex_buffer);

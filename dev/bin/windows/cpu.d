@@ -1,1 +1,2 @@
-bin/windows/cpu.o: src/cpu.c include/cpu.h include/types.h include/bus.h
+bin/windows/cpu.o: src/cpu.c include/os.h include/types.h include/cpu.h \
+ include/bus.h

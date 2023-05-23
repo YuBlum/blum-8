@@ -146,22 +146,52 @@ screen_bytes = screen_tile * screen_tile * tile_index_bytes
 
 0 1 2 3
 
-cpu:
-	ram
-	alu
-	registers
+cpu modules:
+	6kb of ram
+	7 registers
+	alu (arithmetic and logic unit):
+		2 input registers
+		1 output register
+	sru (screen redering unit):
+		x tile register of 8 bits (7 bits used)
+		y tile register of 8 bits (7 bits used)
+		pixel register of 8 bits (6 bits used) -> (00  000 000
+		                                           col  x   y
 
-rpu:
-	ram (no access)
-	registers
-	colors
-	screen
+video-game total ram = 6kb
+cartridge rom        = 58kb
 
-cartridge:
-	rom
+clock cycles calculation:
+	read instruction +1
+	next instruction +1
+	jump +1
+	address + reg == next page +1
+	addressing modes:
+		noa +0
+		cst +0
+		zpg +1
+		adr +2
+		zpx +2 (if go to next page +4)
+		zpy +2 (if go to next page +4)
+		adx +3 (if go to next page +4)
+		ady +3 (if go to next page +4)
+	stack +1
 
-cpu ram + rpu ram + cartridge rom = 64kb
+sru loop:
+	1 cycle:
+		get tile index based on camera and the x tile and y tile registers
+	2 cycle:
+		get the pixel color index of the tile based on the pixel register(x, y)
+	3 cycle:
+		signal the real color to the crt if pixel is visible, based on the palette especified on attributes and the pixel register(col)
 
+timing:
+	there's 128x128, or 16384 pixels, for each pixel it'll be needed 5 sru cycles. per 3 sru cycles 1 cpu cycle will occur.
+	1 scan line (128 pixels) is gonna be 384 sru cycles and 128 cpu cycles.
+	after all 128 scanlines have occured 128 more unvisible scanlines will occur for refresh the frame (vblank)
+	all the 256 scanlines (counting vblank) will be 60 HZ, or 60 fps.
+	each scanline will take 256/60 (~4.26) HZ, so 1 cpu cycle is 256/60/128 (~0.033) HZ and 1 rsu cycle is 256/60/384 (~0.011) HZ
+	one frame have a total of 32768 cpu cycles, 16384 of those are for vblank. there're 49152 rsu cycles, the rsu is freezed at vblank.
 
 tiles attributes:
 	bit (0, 1) palette index
@@ -202,55 +232,26 @@ sprites capacity: 64
 16*16 = 256b / 4 = 64b
 
 memory layout:
-		------------------|------------------------|----------------
-		     address      |      tiled mode        |     amount
-		------------------|------------------------|----------------
-	cpu:                |                        |
-		[0x0000 - 0x1fff] | ram                    | 8kb   (8192b)
-		[0x2000 - 0x20ff] | stack                  | 256b
-		[0x2100 - 0x21ed] | I/O                    | 238b
-	rpu:                |                        |
-		[0x21ee - 0x29ed] | tiles background       | 2kb   (2048b)
-		[0x29ee - 0x31ed] | tiles sprites          | 2kb   (2048b)
-		[0x31ee - 0x32ed] | sprites                | 256b
-		[0x32ee - 0x33ed] | background 00          | 256b
-		[0x33ee - 0x34ed] | background 01          | 256b
-		[0x34ee - 0x35ed] | background 10          | 256b
-		[0x35ee - 0x36ed] | background 11          | 256b
-		[0x36ee - 0x37ed] | background attributes  | 256b 
-		[0x37ee - 0x37f5] | pallete background     | 8b
-		[0x37f6 - 0x37fd] | pallete sprites        | 8b
-		[0x37fe - 0x37fe] | background x scrolling | 1b
-		[0x37ff - 0x37ff] | background y scrolling | 1b
-	rom:                |                        |
-		[0x3800 - 0xffff] | general purpose        | 50kb (51200b)
-
-maybe future memory layout:
-		------------------|------------------------|------------------------|----------------
-		     address      |      tiled mode        |      pixel mode        |     amount
-		------------------|------------------------|------------------------|----------------
-	cpu:                |                        |                        |
-		[0x0000 - 0x1fff] | ram                    | ram                    | 8kb   (8192b)
-		[0x2000 - 0x20ff] | stack                  | stack                  | 256b
-		[0x2100 - 0x21f0] | I/O                    | I/O                    | 241b
-	rpu:                |                        |                        |
-		[0x21f1 - 0x29f0] | tiles background       | first half of screen   | 2kb   (2048b)
-		[0x29f1 - 0x31f0] | tiles sprites          | last  half of screen   | 2kb   (2048b)
-		[0x31f1 - 0x32f0] | sprites                | ram                    | 256b
-		[0x32f1 - 0x33f0] | background 00          | ram                    | 256b
-		[0x33f1 - 0x34f0] | background 01          | ram                    | 256b
-		[0x34f1 - 0x35f0] | background 10          | ram                    | 256b
-		[0x35f1 - 0x36f0] | background 11          | ram                    | 256b
-		[0x36f1 - 0x37f0] | background attributes  | ram                    | 256b 
-		[0x37f1 - 0x37f4] | pallete background     | ram                    | 4b
-		[0x37f5 - 0x37f8] | pallete sprites        | ram                    | 4b
-		[0x37f9 - 0x37f9] | background x scrolling | ram                    | 1b
-		[0x37fa - 0x37fa] | background y scrolling | ram                    | 1b
-	rom:                |                        |                        |
-		[0x37fb - 0xfffa] | general purpose        | general purpose        | 50kb (51200b)
-		[0xfffb - 0xfffc] | reset inter. addr      | reset inter. addr      | 2b
-		[0xfffd - 0xfffe] | vblnk inter. addr      | vblnk inter. addr      | 2b
-		[0xffff - 0xffff] | render mode            | render mode            | 2b
+		------------------|----------------------------|-----------------------------------------------------|----------------
+		     address      |            name            |                     description                     |     amount
+		------------------|----------------------------|-----------------------------------------------------|----------------
+		[0x0000 - 0x0fff] | ram                        | random access memory                                | 4kb   (4096b)
+		[0x1000 - 0x10ff] | stack                      | stack memory                                        | 256b
+		[0x1100 - 0x11ff] | sprites attributes         | sprites attributes (max of 64 sprites)              | 256b
+		[0x1200 - 0x12ff] | screen-00                  | 16 by 16 tile index table (top left)                | 256b
+		[0x1300 - 0x13ff] | screen-01                  | 16 by 16 tile index table (top right)               | 256b
+		[0x1400 - 0x14ff] | screen-10                  | 16 by 16 tile index table (bot left)                | 256b
+		[0x1500 - 0x15ff] | screen-11                  | 16 by 16 tile index table (bot right)               | 256b
+		[0x1600 - 0x16ff] | background attributes      | 16 by 16 tile attributes table for the background   | 256b 
+		[0x1700 - 0x17f4] | I/O                        | controller ports (1 bit per button)                 | 245b
+		[0x17f5 - 0x17f6] | tiles background   address | address to 2kb of memory used for background tiles  | 2b
+		[0x17f7 - 0x17f8] | tiles sprites      address | address to 2kb of memory used for sprite     tiles  | 2b
+		[0x17f9 - 0x17fa] | pallete background address | address to 8b of memory used for bg pal             | 2b
+		[0x17fb - 0x17fc] | pallete sprites    address | address to 8b of memory used for fg pal             | 2b
+		[0x17fd - 0x17fd] | background x scrolling     | amount of scroll between screens 0x and 1x          | 1b
+		[0x17fe - 0x17fe] | background y scrolling     | amount of scroll between screens x0 and x1          | 1b
+		[0x17ff - 0x17ff] | background tile            | index of the background tile to be used as bg       | 1b
+		[0x1800 - 0xffff] | program memory             | general porpuse read-only memory                    | 58kb (59392b)
 
 
 111  
@@ -273,10 +274,8 @@ maybe future memory layout:
 
 (~xxxx ^ 0001) ->
 
-
-
-registers: x  y  z  f  s  p
-           1  1  1  1  1  2
+registers: x  y  z  f  s  t  p
+           1  1  1  1  1  2  2
 
 x -> general purpose 
 y -> general purpose 
@@ -291,8 +290,6 @@ low nibble = 16 instructions
 verify if high nibble is odd or even = low nibble * 2 = 16 * 2 = 32
 
 60 - 26 = 34
-
-
 
 n -- o -- p
 i -- n -- x, y, c
@@ -345,7 +342,8 @@ opcodes:
 	psf     | pushes f into the stack                        | noa |     |     |     |     |     |     |     |
 	pof     | pops   the stack into f                        | noa |     |     |     |     |     |     |     |
 	ret     | return from subroutine                         | noa |     |     |     |     |     |     |     |
-	rti     | return from interrupt                          | noa |     |     |     |     |     |     |     |
+	ext     | exit   from interrupt                          | noa |     |     |     |     |     |     |     |
+	dly     | delay for x<<8|y low clock cycles              | noa |     |     |     |     |     |     |     |
 	tzy     | transfer z to y                                | noa |     |     |     |     |     |     |     |
 	tzx     | transfer z to x                                | noa |     |     |     |     |     |     |     |
 	tyz     | transfer y to z                                | noa |     |     |     |     |     |     |     |
@@ -411,7 +409,7 @@ instructions:
 	-------|--------|----------------
 	index  | opcode | addresing mode 
 	-------|--------|----------------
-	 0x00  |  nop   |  noa           
+	 0x00  |  nop   |  noa             
 	 0x01  |  inx   |  noa             
 	 0x02  |  dex   |  noa             
 	 0x03  |  iny   |  noa             
@@ -423,24 +421,25 @@ instructions:
 	 0x09  |  psf   |  noa             
 	 0x0a  |  pof   |  noa             
 	 0x0b  |  ret   |  noa             
-	 0x0c  |  rti   |  noa             
-	 0x0d  |  tzy   |  noa             
-	 0x0e  |  tzx   |  noa             
-	 0x0f  |  tyz   |  noa             
-	 0x10  |  tyx   |  noa             
-	 0x11  |  txz   |  noa             
-	 0x12  |  txy   |  noa             
-	 0x13  |  szy   |  noa             
-	 0x14  |  szx   |  noa             
-	 0x15  |  sxy   |  noa             
-	 0x16  |  sec   |  noa             
-	 0x17  |  sev   |  noa             
-	 0x18  |  clc   |  noa             
-	 0x19  |  clv   |  noa             
-	 0x1a  |  shr   |  noa             
-	 0x1b  |  shl   |  noa             
-	 0x1c  |  ror   |  noa             
-	 0x1d  |  rol   |  noa             
+	 0x0c  |  ext   |  noa             
+	 0x0d  |  dly   |  noa             
+	 0x0e  |  tzy   |  noa             
+	 0x0f  |  tzx   |  noa             
+	 0x10  |  tyz   |  noa             
+	 0x11  |  tyx   |  noa             
+	 0x12  |  txz   |  noa             
+	 0x13  |  txy   |  noa             
+	 0x14  |  szy   |  noa             
+	 0x15  |  szx   |  noa             
+	 0x16  |  sxy   |  noa             
+	 0x17  |  sec   |  noa             
+	 0x18  |  sev   |  noa             
+	 0x19  |  clc   |  noa             
+	 0x1a  |  clv   |  noa             
+	 0x1b  |  shr   |  noa             
+	 0x1c  |  shl   |  noa             
+	 0x1d  |  ror   |  noa             
+	 0x1e  |  rol   |  noa             
 	 0x20  |  and   |  cst             
 	 0x21  |  lor   |  cst             
 	 0x22  |  xor   |  cst             
@@ -800,12 +799,6 @@ f f f f
  0xf1  |  cpx   |  adr 
  0xf2  |  cpy   |  adr 
 
-
-
-
-
-
-
 instructions:
 	0x00 -> nop -> no operation
 	0x01 -> inx -> incremeant x by 1
@@ -891,3 +884,4 @@ flags:
 	L : less
 	N : negative
 	V : overflow
+	D : delaying
