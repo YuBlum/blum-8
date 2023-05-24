@@ -9,7 +9,15 @@ enum {
 	TKN_ADS, /* address sufix */
 	TKN_INS, /* instruction */
 	TKN_LBL, /* label */
+	TKN_MLB, /* most significant byte of label */
+	TKN_LLB, /* least significant byte of label */
 	TKN_STR, /* string */
+};
+
+enum lbltyp {
+	LTP_NORMAL,
+	LTP_MOST,
+	LTP_LEAST,
 };
 
 b8 assemble(const i8 *name);

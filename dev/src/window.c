@@ -1,5 +1,5 @@
 #include <os.h>
-#include <rpu.h>
+#include <cpu.h>
 #include <crt.h>
 #include <glfw3.h>
 #include <stdio.h>
@@ -62,7 +62,9 @@ window_open(void) {
 	os_framerate(60);
 	while (!glfw_window_should_close(window)) {
 		os_frame_begin();
-		rpu_tick();
+		for (u32 i = 0; i < 128; i++) {
+			cpu_tick();
+		}
 		crt_update();
 		glfw_poll_events();
 		glfw_swap_buffers(window);

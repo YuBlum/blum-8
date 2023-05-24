@@ -20,6 +20,23 @@ static u16 t; /* timer   register */
 static u16 p; /* pointer register */
 static u8  clock;
 
+static struct {
+	u8 x : 4;
+	u8 y : 4;
+} tl;
+static struct {
+	u8 x : 3;
+	u8 y : 3;
+	u8 c : 2;
+} px;
+
+//static u32 colors[] = {
+//	0x1a1717, 0x8d8383, 0xd3c1c1, 0xede5e5, /*00:#1a1717 01:#8d8383 02:#d3c1c1 03:#ede5e5*/
+//	0x92afed, 0x7a84d3, 0x7958c1, 0x6c2c9e, /*04:#92afed 05:#7a84d3 06:#7958c1 07:#6c2c9e*/
+//	0x8d1e1e, 0xc15133, 0xe588a6, 0xe5c1d4, /*08:#8d1e1e 09:#c15133 10:#e588a6 11:#e5c1d4*/
+//	0x27953f, 0x4bb93e, 0xa2d34e, 0xfaff6b, /*12:#27953f 13:#4bb93e 14:#a2d34e 15:#faff6b*/
+//};
+
 union byte {
 	u8 b;
 	struct {
@@ -125,7 +142,7 @@ void
 cpu_tick(void) {
 	if (clock > 0) {
 		clock--;
-		return;
+		goto sru;
 	}
 	/*
 	cpu_print_registers();
@@ -139,7 +156,7 @@ cpu_tick(void) {
 	if (FLAG_GET(D)) {
 		//printf("%u\n", t);
 		FLAG_SET(D, --t != 0);
-		return;
+		goto sru;
 	}
 	p++;
 	switch (inst[idx].addrmd) {
@@ -387,6 +404,29 @@ cpu_tick(void) {
 		default:
 			assert(0);
 			break;
+	}
+	/* Screen Rendering Unit (SRU) */
+sru:
+	i8 scroll_x = bus_read_byte(SCROLL_X);
+	i8 scroll_y = bus_read_byte(SCROLL_Y);
+	i8 tile_x = scroll_x / 8 + tl.x;
+	i8 tile_y = scroll_y / 8 + tl.y;
+	if (tile_x <  0) tile_x = 32 + tile_x;
+	if (tile_y <  0) tile_y = 32 + tile_y;
+	if (tile_x > 31) tile_x = tile_x - 32;
+	if (tile_y > 31) tile_y = tile_y - 32;
+	u16 screen_index = SCREEN00 + ((tile_y > 15 << 1) + tile_x > 15) * 256 + (tile_y * 16 + tile_x);
+	if (tile_x > 15) tile_x -= 16;
+	if (tile_y > 15) tile_y -= 16;
+	assert(tile_x >= 0 && tile_y >= 0 && tile_x < 32 && tile_y < 32);
+	u8 tile_index = bus_read_byte(screen_index);
+	/* TODO: get pixel and tile attributes */
+	px.x = px.x +     1;
+	px.y = px.y + !px.x;
+	if (!px.y) {
+		printf("%x %d %u %u %u\n", screen_index, tile_y * 16 + tile_x, tile_x, tile_y, tile_index);
+		tl.x = tl.x +    1;
+		tl.y = tl.y + !tl.x;
 	}
 }
 

@@ -32,9 +32,10 @@ struct split {
 struct token {
 	u32 type;
 	enum addrmd addrmd;
+	struct split string;
 	union {
-		enum   opcode opcode;
-		struct split string;
+		enum opcode opcode;
+		enum lbltyp lbltyp;
 	};
 	union {
 		u8  byte;
@@ -103,7 +104,7 @@ assemble(const i8 *name) {
 	labels = arraylist_alloc(sizeof (struct label));
 	/* split source */
 	static i8 separators[] = " \t\n";
-	static i8 operators[]  = ":$%.,";
+	static i8 operators[]  = ":$%.,<>";
 	struct split *split = NULL;
 	b8  is_str = 0;
 	u32 line   = 1;
@@ -299,14 +300,22 @@ assemble_split:
 				labels = arraylist_push(labels, &(struct label) { .string = splitted[i], .addr = code_size + ROM_BEGIN });
 				i++;
 				break;
+			case '<':
+			case '>':
+				break;
 			default:
 				opcode = cpu_opcode_get(splitted[i].buf, splitted[i].siz);
 				if (opcode != -1) {
 					tokens = arraylist_push(tokens, &(struct token) { TKN_INS, .opcode = opcode, .addrmd = NOA});
 					code_size++;
 				} else if (i >= arraylist_size(splitted) - 1 || splitted[i + 1].buf[0] != ':') {
-					tokens = arraylist_push(tokens, &(struct token) { TKN_LBL, .string = splitted[i], .addrmd = ADR });
-					code_size += 2;
+					enum lbltyp lbltyp = LTP_NORMAL;
+					if (i > 0 && splitted[i - 1].siz == 1) {
+						lbltyp = splitted[i - 1].buf[0] == '<' ? LTP_LEAST : splitted[i - 1].buf[0] == '>' ? LTP_MOST : LTP_NORMAL;
+					}
+					code_size++;
+					tokens = arraylist_push(tokens, &(struct token) { TKN_LBL, .string = splitted[i], .addrmd = ADR, .lbltyp = lbltyp });
+					code_size += lbltyp == LTP_NORMAL;
 				}
 				break;
 		}
@@ -347,8 +356,17 @@ assemble_split:
 					free(code);
 					goto assemble_end;
 				}
-				code[idx++] = labels[label].addr & 0xff;
-				code[idx++] = labels[label].addr >> 8;
+				if (tokens[i].lbltyp == LTP_LEAST || tokens[i].lbltyp == LTP_NORMAL) {
+					code[idx++] = labels[label].addr & 0xff;
+				} else {
+					printf("most\n");
+				}
+				if (tokens[i].lbltyp == LTP_MOST || tokens[i].lbltyp == LTP_NORMAL) {
+					code[idx++] = labels[label].addr >> 8;
+				} else {
+					printf("least\n");
+					assert(tokens[i].lbltyp == LTP_LEAST);
+				}
 				break;
 			case TKN_STR:
 				for (u32 j = 0; j < tokens[i].string.siz; j++) {

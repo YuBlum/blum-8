@@ -155,8 +155,8 @@ cpu modules:
 	sru (screen redering unit):
 		x tile register of 8 bits (7 bits used)
 		y tile register of 8 bits (7 bits used)
-		pixel register of 8 bits (6 bits used) -> (00  000 000
-		                                           col  x   y
+		pixel register of 8 bits -> 00  000 000
+		                            col  x   y
 
 video-game total ram = 6kb
 cartridge rom        = 58kb
@@ -186,7 +186,7 @@ sru loop:
 		signal the real color to the crt if pixel is visible, based on the palette especified on attributes and the pixel register(col)
 
 timing:
-	there's 128x128, or 16384 pixels, for each pixel it'll be needed 5 sru cycles. per 3 sru cycles 1 cpu cycle will occur.
+	there's 128x128, or 16384 pixels, for each pixel it'll be needed 3 sru cycles. per 3 sru cycles 1 cpu cycle will occur.
 	1 scan line (128 pixels) is gonna be 384 sru cycles and 128 cpu cycles.
 	after all 128 scanlines have occured 128 more unvisible scanlines will occur for refresh the frame (vblank)
 	all the 256 scanlines (counting vblank) will be 60 HZ, or 60 fps.
