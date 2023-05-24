@@ -420,11 +420,12 @@ sru:
 	if (tile_y > 15) tile_y -= 16;
 	assert(tile_x >= 0 && tile_y >= 0 && tile_x < 32 && tile_y < 32);
 	u8 tile_index = bus_read_byte(screen_index);
+	(void)tile_index;
 	/* TODO: get pixel and tile attributes */
 	px.x = px.x +     1;
 	px.y = px.y + !px.x;
 	if (!px.y) {
-		printf("%x %d %u %u %u\n", screen_index, tile_y * 16 + tile_x, tile_x, tile_y, tile_index);
+		//printf("%x %d %u %u %u\n", screen_index, tile_y * 16 + tile_x, tile_x, tile_y, tile_index);
 		tl.x = tl.x +    1;
 		tl.y = tl.y + !tl.x;
 	}
@@ -440,6 +441,11 @@ cpu_opcode_get(const i8 *str, u32 str_size) {
 		) return i;
 	}
 	return -1;
+}
+
+i8 *
+cpu_opcode_str(enum opcode opcode) {
+	return opcode_name[opcode];
 }
 
 u8
