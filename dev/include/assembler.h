@@ -3,8 +3,6 @@
 
 #include <types.h>
 
-b8 assemble(const i8 *name);
-void assembler_lex(const i8 *name);
-void assembler_parse(void);
+b8 assemble(i8 *name);
 
 #endif/*__ASSEMBLER_H__*/

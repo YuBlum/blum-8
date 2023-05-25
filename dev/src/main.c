@@ -11,9 +11,9 @@
 
 int
 main(void) {
-	cpu_startup();
-	if (assemble("program.s")) exit(1);
 	os_setup();
+	cpu_startup();
+	if (!assemble("program.s")) exit(1);
 	window_open();
 	window_close();
 	os_cleanup();

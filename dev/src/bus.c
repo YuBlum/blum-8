@@ -1,6 +1,4 @@
 #include <bus.h>
-#include <cpu.h>
-#include <rpu.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
