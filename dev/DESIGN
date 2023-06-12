@@ -243,14 +243,13 @@ memory layout:
 		[0x1400 - 0x14ff] | screen-10                  | 16 by 16 tile index table (bot left)                | 256b
 		[0x1500 - 0x15ff] | screen-11                  | 16 by 16 tile index table (bot right)               | 256b
 		[0x1600 - 0x16ff] | background attributes      | 16 by 16 tile attributes table for the background   | 256b 
-		[0x1700 - 0x17f4] | I/O                        | controller ports (1 bit per button)                 | 245b
-		[0x17f5 - 0x17f6] | tiles background   address | address to 2kb of memory used for background tiles  | 2b
-		[0x17f7 - 0x17f8] | tiles sprites      address | address to 2kb of memory used for sprite     tiles  | 2b
-		[0x17f9 - 0x17fa] | pallete background address | address to 8b of memory used for bg pal             | 2b
-		[0x17fb - 0x17fc] | pallete sprites    address | address to 8b of memory used for fg pal             | 2b
-		[0x17fd - 0x17fd] | background x scrolling     | amount of scroll between screens 0x and 1x          | 1b
-		[0x17fe - 0x17fe] | background y scrolling     | amount of scroll between screens x0 and x1          | 1b
-		[0x17ff - 0x17ff] | background tile            | index of the background tile to be used as bg       | 1b
+		[0x1700 - 0x17f5] | I/O                        | controller ports (1 bit per button)                 | 246b
+		[0x17f6 - 0x17f7] | tiles background   address | address to 2kb of memory used for background tiles  | 2b
+		[0x17f8 - 0x17f9] | tiles sprites      address | address to 2kb of memory used for sprite     tiles  | 2b
+		[0x17fa - 0x17fb] | pallete background address | address to 8b of memory used for bg pal             | 2b
+		[0x17fc - 0x17fd] | pallete sprites    address | address to 8b of memory used for fg pal             | 2b
+		[0x17fe - 0x17fe] | background x scrolling     | amount of scroll between screens 0x and 1x          | 1b
+		[0x17ff - 0x17ff] | background y scrolling     | amount of scroll between screens x0 and x1          | 1b
 		[0x1800 - 0xffff] | program memory             | general porpuse read-only memory                    | 58kb (59392b)
 
 

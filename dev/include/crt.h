@@ -2,9 +2,10 @@
 #define __CRT_H__
 
 #include <types.h>
+#include <os.h>
 
-void crt_begin(void);
-void crt_electron_gun_shoot(u32 rgb);
+b8   crt_begin(const struct glfw *glfw);
+void crt_display_pixel(u32 rgb, u32 x, u32 y);
 void crt_update(void);
 void crt_end(void);
 

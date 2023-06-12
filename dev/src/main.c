@@ -13,8 +13,15 @@ int
 main(void) {
 	os_setup();
 	cpu_startup();
-	if (!assemble("program.s")) exit(1);
-	window_open();
+	if (!assemble("program.s")) {
+    os_cleanup();
+    return 1;
+  }
+	if (!window_open()) {
+    os_cleanup();
+    return 1;
+  }
+  window_loop();
 	window_close();
 	os_cleanup();
 	return 0;

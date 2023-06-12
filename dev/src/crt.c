@@ -8,38 +8,40 @@
 #include <config.h>
 #include <GL/glext.h>
 
-static void (*gl_clear_color)(f32, f32, f32, f32);
-static void (*gl_clear)(u32);
-static u32  (*gl_create_shader)(u32);
-static void (*gl_shader_source)(u32, i32, const i8 **, const i32 *);
-static void (*gl_compile_shader)(u32);
-static void (*gl_get_shader_iv)(u32, u32, i32 *);
-static void (*gl_get_shader_info_log)(u32, i32, i32 *, i8 *);
-static u32  (*gl_create_program)(void);
-static void (*gl_attach_shader)(u32, u32);
-static void (*gl_link_program)(u32);
-static void (*gl_get_program_iv)(u32, u32, i32 *);
-static void (*gl_get_program_info_log)(u32, i32, i32 *, i8 *);
-static void (*gl_use_program)(u32);
-static void (*gl_delete_shader)(u32);
-static void (*gl_delete_program)(u32);
-static void (*gl_gen_vertex_arrays)(i32, u32 *);
-static void (*gl_gen_buffers)(i32, u32 *);
-static void (*gl_bind_vertex_array)(u32);
-static void (*gl_bind_buffer)(u32, u32);
-static void (*gl_buffer_data)(u32, i64, const void *, u32);
-static void (*gl_vertex_attrib_pointer)(u32, i32, u32, b8, i32, const void *);
-static void (*gl_enable_vertex_attrib_array)(u32);
-static void (*gl_draw_elements)(u32, i32, u32, const void *);
-static void (*gl_delete_vertex_arrays)(i32, u32 *);
-static void (*gl_delete_buffers)(i32, u32 *);
-static void (*gl_draw_arrays)(u32, i32, i32);
-static void (*gl_gen_textures)(i32, u32 *);
-static void (*gl_bind_texture)(u32, u32);
-static void (*gl_tex_parameter_i)(u32, u32, i32);
-static void (*gl_tex_sub_image_2d)(u32, i32, i32, i32, i32, i32, u32, u32, const void *);
-static void (*gl_tex_image_2d)(u32, i32, i32, i32, i32, i32, u32, u32, const void *);
-static void (*gl_delete_textures)(i32, u32 *);
+static struct {
+  void (*clear_color)(f32, f32, f32, f32);
+  void (*clear)(u32);
+  u32  (*create_shader)(u32);
+  void (*shader_source)(u32, i32, const i8 **, const i32 *);
+  void (*compile_shader)(u32);
+  void (*get_shader_iv)(u32, u32, i32 *);
+  void (*get_shader_info_log)(u32, i32, i32 *, i8 *);
+  u32  (*create_program)(void);
+  void (*attach_shader)(u32, u32);
+  void (*link_program)(u32);
+  void (*get_program_iv)(u32, u32, i32 *);
+  void (*get_program_info_log)(u32, i32, i32 *, i8 *);
+  void (*use_program)(u32);
+  void (*delete_shader)(u32);
+  void (*delete_program)(u32);
+  void (*gen_vertex_arrays)(i32, u32 *);
+  void (*gen_buffers)(i32, u32 *);
+  void (*bind_vertex_array)(u32);
+  void (*bind_buffer)(u32, u32);
+  void (*buffer_data)(u32, i64, const void *, u32);
+  void (*vertex_attrib_pointer)(u32, i32, u32, b8, i32, const void *);
+  void (*enable_vertex_attrib_array)(u32);
+  void (*draw_elements)(u32, i32, u32, const void *);
+  void (*delete_vertex_arrays)(i32, u32 *);
+  void (*delete_buffers)(i32, u32 *);
+  void (*draw_arrays)(u32, i32, i32);
+  void (*gen_textures)(i32, u32 *);
+  void (*bind_texture)(u32, u32);
+  void (*tex_parameter_i)(u32, u32, i32);
+  void (*tex_sub_image_2d)(u32, i32, i32, i32, i32, i32, u32, u32, const void *);
+  void (*tex_image_2d)(u32, i32, i32, i32, i32, i32, u32, u32, const void *);
+  void (*delete_textures)(i32, u32 *);
+} gl;
 
 static u32 shader_program;
 
@@ -50,96 +52,68 @@ static u32 index_buffer;
 static u32 screen_buffer[GAME_SIZE*GAME_SIZE];
 static u32 screen;
 
-static u32 electron_gun_x;
-static u32 electron_gun_y;
+static b8 shader_create(u32 type, const i8 *name, u32 *shader);
 
-static u32
-shader_create(u32 type, const i8 *name) {
-	i8 *path = resource_path("shaders", name);
-	FILE *file = fopen(path, "r");
-	if (!file) {
-		fprintf(stderr, "error: couldn't load shader %s: %s\n", path, strerror(errno));
-		exit(1);
-	}
-	fseek(file, 0, SEEK_END);
-	i32 siz = ftell(file);
-	rewind(file);
-	i8 *src = malloc(siz + 1);
-	if (!src) {
-		fprintf(stderr, "error: couldn't allocate memory for shader %s\n", path);
-		exit(1);
-	}
-	src[siz] = '\0';
-	fread(src, 1, siz, file);
-	i32 success;
-	u32 shader = gl_create_shader(type);
-	gl_shader_source(shader, 1, (const i8 **)&src, &siz);
-	free(src);
-	gl_compile_shader(shader);
-	gl_get_shader_iv(shader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		i8 info[256];
-		gl_get_shader_info_log(shader, 256, NULL, info);
-		fprintf(stderr, "error: compile error in %s: %s\n", type == GL_VERTEX_SHADER ? "vertex" : "fragment", info);
-		exit(1);
-	}
-	return shader;
+static void
+opengl_load(const struct glfw *glfw) {
+	gl.clear_color                = glfw->get_proc_address("glClearColor");
+	gl.clear                      = glfw->get_proc_address("glClear");
+	gl.create_shader              = glfw->get_proc_address("glCreateShader");
+	gl.shader_source              = glfw->get_proc_address("glShaderSource");
+	gl.compile_shader             = glfw->get_proc_address("glCompileShader");
+	gl.get_shader_iv              = glfw->get_proc_address("glGetShaderiv");
+	gl.get_shader_info_log        = glfw->get_proc_address("glGetShaderInfoLog");
+	gl.create_program             = glfw->get_proc_address("glCreateProgram");
+	gl.attach_shader              = glfw->get_proc_address("glAttachShader");
+	gl.link_program               = glfw->get_proc_address("glLinkProgram");
+	gl.get_program_iv             = glfw->get_proc_address("glGetProgramiv");
+	gl.get_program_info_log       = glfw->get_proc_address("glGetProgramInfoLog");
+	gl.use_program                = glfw->get_proc_address("glUseProgram");
+	gl.delete_shader              = glfw->get_proc_address("glDeleteShader");
+	gl.delete_program             = glfw->get_proc_address("glDeleteProgram");
+	gl.gen_vertex_arrays          = glfw->get_proc_address("glGenVertexArrays");
+	gl.gen_buffers                = glfw->get_proc_address("glGenBuffers");
+	gl.bind_vertex_array          = glfw->get_proc_address("glBindVertexArray");
+	gl.bind_buffer                = glfw->get_proc_address("glBindBuffer");
+	gl.buffer_data                = glfw->get_proc_address("glBufferData");
+	gl.vertex_attrib_pointer      = glfw->get_proc_address("glVertexAttribPointer");
+	gl.enable_vertex_attrib_array = glfw->get_proc_address("glEnableVertexAttribArray");
+	gl.draw_elements              = glfw->get_proc_address("glDrawElements");
+	gl.delete_vertex_arrays       = glfw->get_proc_address("glDeleteVertexArrays");
+	gl.delete_buffers             = glfw->get_proc_address("glDeleteBuffers");
+	gl.draw_arrays                = glfw->get_proc_address("glDrawArrays");
+	gl.gen_textures               = glfw->get_proc_address("glGenTextures");
+	gl.bind_texture               = glfw->get_proc_address("glBindTexture");
+	gl.tex_parameter_i            = glfw->get_proc_address("glTexParameteri");
+	gl.tex_image_2d               = glfw->get_proc_address("glTexImage2D");
+	gl.tex_sub_image_2d           = glfw->get_proc_address("glTexSubImage2D");
+	gl.delete_textures            = glfw->get_proc_address("glDeleteTextures");
 }
 
-void
-crt_begin(void) {
-	/* load opengl functions */
-	void *(*glfw_get_proc_address)(const i8 *) = glfw_func("glfwGetProcAddress");
-	gl_clear_color                = glfw_get_proc_address("glClearColor");
-	gl_clear                      = glfw_get_proc_address("glClear");
-	gl_create_shader              = glfw_get_proc_address("glCreateShader");
-	gl_shader_source              = glfw_get_proc_address("glShaderSource");
-	gl_compile_shader             = glfw_get_proc_address("glCompileShader");
-	gl_get_shader_iv              = glfw_get_proc_address("glGetShaderiv");
-	gl_get_shader_info_log        = glfw_get_proc_address("glGetShaderInfoLog");
-	gl_create_program             = glfw_get_proc_address("glCreateProgram");
-	gl_attach_shader              = glfw_get_proc_address("glAttachShader");
-	gl_link_program               = glfw_get_proc_address("glLinkProgram");
-	gl_get_program_iv             = glfw_get_proc_address("glGetProgramiv");
-	gl_get_program_info_log       = glfw_get_proc_address("glGetProgramInfoLog");
-	gl_use_program                = glfw_get_proc_address("glUseProgram");
-	gl_delete_shader              = glfw_get_proc_address("glDeleteShader");
-	gl_delete_program             = glfw_get_proc_address("glDeleteProgram");
-	gl_gen_vertex_arrays          = glfw_get_proc_address("glGenVertexArrays");
-	gl_gen_buffers                = glfw_get_proc_address("glGenBuffers");
-	gl_bind_vertex_array          = glfw_get_proc_address("glBindVertexArray");
-	gl_bind_buffer                = glfw_get_proc_address("glBindBuffer");
-	gl_buffer_data                = glfw_get_proc_address("glBufferData");
-	gl_vertex_attrib_pointer      = glfw_get_proc_address("glVertexAttribPointer");
-	gl_enable_vertex_attrib_array = glfw_get_proc_address("glEnableVertexAttribArray");
-	gl_draw_elements              = glfw_get_proc_address("glDrawElements");
-	gl_delete_vertex_arrays       = glfw_get_proc_address("glDeleteVertexArrays");
-	gl_delete_buffers             = glfw_get_proc_address("glDeleteBuffers");
-	gl_draw_arrays                = glfw_get_proc_address("glDrawArrays");
-	gl_gen_textures               = glfw_get_proc_address("glGenTextures");
-	gl_bind_texture               = glfw_get_proc_address("glBindTexture");
-	gl_tex_parameter_i            = glfw_get_proc_address("glTexParameteri");
-	gl_tex_image_2d               = glfw_get_proc_address("glTexImage2D");
-	gl_tex_sub_image_2d           = glfw_get_proc_address("glTexSubImage2D");
-	gl_delete_textures            = glfw_get_proc_address("glDeleteTextures");
+b8
+crt_begin(const struct glfw *glfw) {
+  opengl_load(glfw);
 	/* creating shader program */
 	i32 success;
-	u32 vertex_shader   = shader_create(GL_VERTEX_SHADER,   "vertex.glsl");
-	u32 fragment_shader = shader_create(GL_FRAGMENT_SHADER, "fragment.glsl");
-	shader_program = gl_create_program();
-	gl_attach_shader(shader_program, vertex_shader);
-	gl_attach_shader(shader_program, fragment_shader);
-	gl_delete_shader(vertex_shader);
-	gl_delete_shader(fragment_shader);
-	gl_link_program(shader_program);
-	gl_get_program_iv(shader_program, GL_LINK_STATUS, &success);
+  u32 vertex_shader, fragment_shader;
+  if (
+    !shader_create(GL_VERTEX_SHADER,   "vertex.glsl", &vertex_shader) ||
+    !shader_create(GL_FRAGMENT_SHADER, "fragment.glsl", &fragment_shader)
+  ) return 0;
+	shader_program = gl.create_program();
+	gl.attach_shader(shader_program, vertex_shader);
+	gl.attach_shader(shader_program, fragment_shader);
+	gl.delete_shader(vertex_shader);
+	gl.delete_shader(fragment_shader);
+	gl.link_program(shader_program);
+	gl.get_program_iv(shader_program, GL_LINK_STATUS, &success);
 	if (!success) {
 		i8 info[256];
-		gl_get_program_info_log(shader_program, 256, NULL, info);
+		gl.get_program_info_log(shader_program, 256, NULL, info);
 		fprintf(stderr, "error: shader linking error: %s\n", info);
-		exit(1);
+    return 0;
 	}
-	gl_use_program(shader_program);
+	gl.use_program(shader_program);
 	/* square */
 	f32 vertices[] = {
 	 -1, -1,  0, 1,
@@ -150,48 +124,76 @@ crt_begin(void) {
 	u32 indices[] = {
 		0, 1, 2, 2, 3, 0
 	};
-	gl_gen_vertex_arrays(1, &vertex_array);
-	gl_bind_vertex_array(vertex_array);
-	gl_gen_buffers(1, &vertex_buffer);
-	gl_gen_buffers(1, &index_buffer);
-	gl_bind_buffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
-	gl_buffer_data(GL_ELEMENT_ARRAY_BUFFER, sizeof (indices), indices, GL_STATIC_DRAW);
-	gl_bind_buffer(GL_ARRAY_BUFFER, vertex_buffer);
-	gl_buffer_data(GL_ARRAY_BUFFER, sizeof (vertices), vertices, GL_STATIC_DRAW);
-	gl_vertex_attrib_pointer(0, 2, GL_FLOAT, 0, sizeof (f32) * 4, (void *)0);
-	gl_enable_vertex_attrib_array(0);
-	gl_vertex_attrib_pointer(1, 2, GL_FLOAT, 0, sizeof (f32) * 4, (void *)(sizeof (f32) * 2));
-	gl_enable_vertex_attrib_array(1);
+	gl.gen_vertex_arrays(1, &vertex_array);
+	gl.bind_vertex_array(vertex_array);
+	gl.gen_buffers(1, &vertex_buffer);
+	gl.gen_buffers(1, &index_buffer);
+	gl.bind_buffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
+	gl.buffer_data(GL_ELEMENT_ARRAY_BUFFER, sizeof (indices), indices, GL_STATIC_DRAW);
+	gl.bind_buffer(GL_ARRAY_BUFFER, vertex_buffer);
+	gl.buffer_data(GL_ARRAY_BUFFER, sizeof (vertices), vertices, GL_STATIC_DRAW);
+	gl.vertex_attrib_pointer(0, 2, GL_FLOAT, 0, sizeof (f32) * 4, (void *)0);
+	gl.enable_vertex_attrib_array(0);
+	gl.vertex_attrib_pointer(1, 2, GL_FLOAT, 0, sizeof (f32) * 4, (void *)(sizeof (f32) * 2));
+	gl.enable_vertex_attrib_array(1);
 	/* create screen texture */
-	gl_gen_textures(1, &screen);
-	gl_bind_texture(GL_TEXTURE_2D, screen);
-	gl_tex_parameter_i(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	gl_tex_parameter_i(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	gl_tex_image_2d(GL_TEXTURE_2D, 0, GL_RGBA, GAME_SIZE, GAME_SIZE, 0, GL_BGRA, GL_UNSIGNED_BYTE, screen_buffer);
+	gl.gen_textures(1, &screen);
+	gl.bind_texture(GL_TEXTURE_2D, screen);
+	gl.tex_parameter_i(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	gl.tex_parameter_i(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	gl.tex_image_2d(GL_TEXTURE_2D, 0, GL_RGBA, GAME_SIZE, GAME_SIZE, 0, GL_BGRA, GL_UNSIGNED_BYTE, screen_buffer);
+  return 1;
+}
+
+static b8
+shader_create(u32 type, const i8 *name, u32 *shader) {
+	i8 *path = resource_path("shaders", name);
+	FILE *file = fopen(path, "r");
+	if (!file) {
+		fprintf(stderr, "error: couldn't load shader %s: %s\n", path, strerror(errno));
+    return 0;
+	}
+	fseek(file, 0, SEEK_END);
+	i32 siz = ftell(file);
+	rewind(file);
+	i8 *src = malloc(siz + 1);
+	if (!src) {
+		fprintf(stderr, "error: couldn't allocate memory for shader %s\n", path);
+    return 0;
+	}
+	src[siz] = '\0';
+	fread(src, 1, siz, file);
+	i32 success;
+	*shader = gl.create_shader(type);
+	gl.shader_source(*shader, 1, (const i8 **)&src, &siz);
+	free(src);
+	gl.compile_shader(*shader);
+	gl.get_shader_iv(*shader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		i8 info[256];
+		gl.get_shader_info_log(*shader, 256, NULL, info);
+		fprintf(stderr, "error: compile error in %s: %s\n", type == GL_VERTEX_SHADER ? "vertex" : "fragment", info);
+    return 0;
+	}
+	return 1;
 }
 
 void
-crt_electron_gun_shoot(u32 rgb) {
-	electron_gun_x++;
-	if (electron_gun_x >= GAME_SIZE) {
-		electron_gun_x = 0;
-		electron_gun_y++;
-		if (electron_gun_y >= GAME_SIZE) electron_gun_y = 0;
-	}
-	screen_buffer[electron_gun_y * GAME_SIZE + electron_gun_x] = rgb;
+crt_display_pixel(u32 rgb, u32 x, u32 y) {
+	screen_buffer[y * GAME_SIZE + x] = rgb;
 }
 
 void
 crt_update(void) {
-	gl_tex_sub_image_2d(GL_TEXTURE_2D, 0, 0, 0, GAME_SIZE, GAME_SIZE, GL_BGRA, GL_UNSIGNED_BYTE, screen_buffer);
-	gl_draw_elements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+	gl.tex_sub_image_2d(GL_TEXTURE_2D, 0, 0, 0, GAME_SIZE, GAME_SIZE, GL_BGRA, GL_UNSIGNED_BYTE, screen_buffer);
+	gl.draw_elements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 }
 
 void
 crt_end(void) {
-	gl_delete_program(shader_program);
-	gl_delete_vertex_arrays(1, &vertex_array);
-	gl_delete_buffers(1, &vertex_buffer);
-	gl_delete_buffers(1, &index_buffer);
-	gl_delete_textures(1, &screen);
+	gl.delete_program(shader_program);
+	gl.delete_vertex_arrays(1, &vertex_array);
+	gl.delete_buffers(1, &vertex_buffer);
+	gl.delete_buffers(1, &index_buffer);
+	gl.delete_textures(1, &screen);
 }

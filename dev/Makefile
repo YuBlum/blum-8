@@ -67,6 +67,9 @@ bin/windows/%.o: src/%.c
 	@echo compiling $< with mingw...
 	@$(CC_WINDOWS) $(FLAGS_WINDOWS) -MMD -c -DWINDOWS $< -o $@
 
+run:
+	../linux/$(EXE)
+
 clean:
 	@rm bin/linux/*
 	@rm bin/windows/*

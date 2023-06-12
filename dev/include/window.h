@@ -1,7 +1,10 @@
 #ifndef __WINDOW_H__
 #define __WINDOW_H__
 
-void window_open(void);
+#include <types.h>
+
+b8   window_open(void);
+void window_loop(void);
 void window_close(void);
 
 #endif/*__WINDOW_H__*/

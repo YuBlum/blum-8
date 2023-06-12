@@ -14,7 +14,7 @@ arraylist_alloc(u32 type_size) {
 	struct arraylist_header *header = malloc(sizeof (struct arraylist_header) + type_size);
 	if (!header) {
 		fprintf(stderr, "error: couldn't allocate memory for the arraylist\n");
-		exit(1);
+    return NULL;
 	}
 	header->size = 0;
 	header->allc = 1;

@@ -1,6 +1,7 @@
 #include <os.h>
 #include <cpu.h>
 #include <bus.h>
+#include <crt.h>
 #include <stdio.h>
 #include <assert.h>
 
@@ -30,12 +31,25 @@ static struct {
 	u8 c : 2;
 } px;
 
-//static u32 colors[] = {
-//	0x1a1717, 0x8d8383, 0xd3c1c1, 0xede5e5, /*00:#1a1717 01:#8d8383 02:#d3c1c1 03:#ede5e5*/
-//	0x92afed, 0x7a84d3, 0x7958c1, 0x6c2c9e, /*04:#92afed 05:#7a84d3 06:#7958c1 07:#6c2c9e*/
-//	0x8d1e1e, 0xc15133, 0xe588a6, 0xe5c1d4, /*08:#8d1e1e 09:#c15133 10:#e588a6 11:#e5c1d4*/
-//	0x27953f, 0x4bb93e, 0xa2d34e, 0xfaff6b, /*12:#27953f 13:#4bb93e 14:#a2d34e 15:#faff6b*/
-//};
+union attributes {
+	u8 val;
+	struct {
+		u8 palette         : 2;
+		u8 not_transparent : 1;
+		u8 flip_x          : 1;
+		u8 flip_y          : 1;
+		u8 rot90           : 1;
+		u8 below           : 1;
+		u8 enabled         : 1;
+	};
+};
+
+static u32 colors[] = {
+	0x1a1717, 0x8d8383, 0xd3c1c1, 0xede5e5, /*00:#1a1717 01:#8d8383 02:#d3c1c1 03:#ede5e5*/
+	0x92afed, 0x7a84d3, 0x7958c1, 0x6c2c9e, /*04:#92afed 05:#7a84d3 06:#7958c1 07:#6c2c9e*/
+	0x8d1e1e, 0xc15133, 0xe588a6, 0xe5c1d4, /*08:#8d1e1e 09:#c15133 10:#e588a6 11:#e5c1d4*/
+	0x27953f, 0x4bb93e, 0xa2d34e, 0xfaff6b, /*12:#27953f 13:#4bb93e 14:#a2d34e 15:#faff6b*/
+};
 
 union byte {
 	u8 b;
@@ -61,7 +75,7 @@ static i8 *opcode_name[] = {
 };
 
 /*
-static char *addrmd_name[] = {
+static i8 *addrmd_name[] = {
 	"noa", "cst", "zpg", "zpx",
 	"zpy", "adr", "adx", "ady"
 };
@@ -78,9 +92,10 @@ static struct instruction inst[0x100];
 void
 cpu_startup(void) {
 	p = ROM_BEGIN;
+  s = 0xff;
 	b8 carry = 0;
 	for (union byte i = { 0 }; i.b || !carry; carry = (u8)(++i.b) == 0) {
-		     if (i.h == 0x0 || i.h == 0x1) inst[i.b].addrmd = NOA;
+		if      (i.h == 0x0 || i.h == 0x1) inst[i.b].addrmd = NOA;
 		else if (i.h == 0x2              ) inst[i.b].addrmd = CST;
 		else if (i.h == 0x3 || i.h == 0x4) inst[i.b].addrmd = ADX;
 		else if (i.h == 0x5 || i.h == 0x6) inst[i.b].addrmd = ADY;
@@ -93,12 +108,12 @@ cpu_startup(void) {
 				if ((i.h & 1) == 0) {
 					inst[i.b].opcode = i.l;
 				} else {
-					inst[i.b].opcode = i.l + TYX;
+					inst[i.b].opcode = i.l + TYZ;
 				}
 				break;
 			case CST:
 				inst[i.b].opcode = i.l + AND;
-				     if (i.l == 0x3) inst[i.b].opcode = ADC;
+				if      (i.l == 0x3) inst[i.b].opcode = ADC;
 				else if (i.l == 0x4) inst[i.b].opcode = SBC;
 				else if (i.l == 0x5) inst[i.b].opcode = LDZ;
 				else if (i.l == 0x6) inst[i.b].opcode = LDX;
@@ -114,7 +129,7 @@ cpu_startup(void) {
 			case ZPG:
 				inst[i.b].opcode = i.l + SHR;
 				if ((i.h & 1) == 0) {
-					     if (i.l == 0x0) inst[i.b].opcode = STY;
+					if      (i.l == 0x0) inst[i.b].opcode = STY;
 					else if (i.l == 0x1) inst[i.b].opcode = CMP;
 					else if (i.l == 0x2) inst[i.b].opcode = CPX;
 					else if (i.l == 0x3) inst[i.b].opcode = CPY;
@@ -132,17 +147,34 @@ void
 cpu_print_registers(void) {
 	printf("x: %.2x, y: %.2x, z: %.2x\n", x, y, z);
 	printf("Flags:\n");
-	printf("Carry: %u, Zero: %u, Less: %u, Negative: %u, Overflow: %u\n",
+	printf("\tCarry: %u, Zero: %u, Less: %u, Negative: %u, Overflow: %u\n",
 		FLAG_GET(C), FLAG_GET(Z), FLAG_GET(L), FLAG_GET(N), FLAG_GET(V));
 	printf("Addresses:\n");
-	printf("Stack: %.2x, Pointer: %.4x\n", s, p);
+	printf("\tStack: %.2x, Pointer: %.4x\n", s, p);
+  u8 idx = bus_read_byte(p);
+	printf("Instruction: %s ", opcode_name[inst[idx].opcode]);
+  switch(inst[idx].addrmd) {
+		case NOA: printf("\n"); break;
+		case CST: printf("$%.2x\n", bus_read_byte(p+1)); break;
+		case ZPG: printf("&%.2x\n", bus_read_byte(p+1)); break;
+		case ADR: printf("&%.4x\n", bus_read_word(p+1)); break;
+		case ZPX: printf("&%.2x\n", bus_read_byte(p+1)+x); break;
+		case ZPY: printf("&%.2x\n", bus_read_byte(p+1)+y); break;
+		case ADX: printf("&%.4x\n", bus_read_word(p+1)+x); break;
+		case ADY: printf("&%.4x\n", bus_read_word(p+1)+y); break;
+  }
+  printf("Stack[0]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xff));
+  printf("Stack[1]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xfe));
+  printf("Stack[2]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xfd));
+  printf("Stack[3]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xfc));
+  printf("Stack[4]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xfb));
 }
 
 void
 cpu_tick(void) {
 	if (clock > 0) {
 		clock--;
-		goto sru;
+		return;
 	}
 	/*
 	cpu_print_registers();
@@ -156,7 +188,7 @@ cpu_tick(void) {
 	if (FLAG_GET(D)) {
 		//printf("%u\n", t);
 		FLAG_SET(D, --t != 0);
-		goto sru;
+		return;
 	}
 	p++;
 	switch (inst[idx].addrmd) {
@@ -204,7 +236,7 @@ cpu_tick(void) {
 			FLAG_SET(N, 0);
 			break;
 		case PSH:
-			bus_write_byte(STACK_BEGIN + s--, z);
+			bus_write_byte(STACK_BEGIN + s--, z, 1);
 			break;
 		case POP:
 			z = bus_read_byte(STACK_BEGIN + ++s);
@@ -212,7 +244,7 @@ cpu_tick(void) {
 			FLAG_SET(N, z & 0x80);
 			clock++;
 			break;
-		case PSF: bus_write_byte(STACK_BEGIN + s--, f); clock += 1; break;
+		case PSF: bus_write_byte(STACK_BEGIN + s--, f, 1); clock += 1; break;
 		case POF: f = bus_read_byte(STACK_BEGIN + ++f); clock += 2; break;
 		case RET:
 			p  = bus_read_byte(STACK_BEGIN + ++s)  & 0x00ff;
@@ -255,7 +287,7 @@ cpu_tick(void) {
 			byte >>= 1;
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
-			bus_write_byte(addr, byte);
+			bus_write_byte(addr, byte, 1);
 			break;
 		case SHL:
 			if (usez) {
@@ -270,7 +302,7 @@ cpu_tick(void) {
 			byte <<= 1;
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
-			bus_write_byte(addr, byte);
+			bus_write_byte(addr, byte, 1);
 			break;
 		case ROR:
 			if (usez) {
@@ -283,7 +315,7 @@ cpu_tick(void) {
 			byte = (byte >> 1) | ((byte & 1) << 7);
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
-			bus_write_byte(addr, byte);
+			bus_write_byte(addr, byte, 1);
 			break;
 		case ROL:
 			if (usez) {
@@ -296,7 +328,7 @@ cpu_tick(void) {
 			byte = (byte << 1) | (byte >> 7);
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
-			bus_write_byte(addr, byte);
+			bus_write_byte(addr, byte, 1);
 			break;
 		case AND:
 			z &= bus_read_byte(addr);
@@ -317,13 +349,13 @@ cpu_tick(void) {
 			byte = bus_read_byte(addr) + 1;
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
-			bus_write_byte(addr, byte);
+			bus_write_byte(addr, byte, 1);
 			break;
 		case DEC:
 			byte = bus_read_byte(addr) - 1;
 			FLAG_SET(Z, !byte);
 			FLAG_SET(N, byte & 0x80);
-			bus_write_byte(addr, byte);
+			bus_write_byte(addr, byte, 1);
 			break;
 		case ADC:
 			byte = bus_read_byte(addr);
@@ -349,7 +381,7 @@ cpu_tick(void) {
 			FLAG_SET(N, z & 0x80);
 			break;
 		case STZ:
-			bus_write_byte(addr, z);
+			bus_write_byte(addr, z, 1);
 			break;
 		case LDX:
 			x = bus_read_byte(addr);
@@ -357,7 +389,7 @@ cpu_tick(void) {
 			FLAG_SET(N, x & 0x80);
 			break;
 		case STX:
-			bus_write_byte(addr, x);
+			bus_write_byte(addr, x, 1);
 			break;
 		case LDY:
 			y = bus_read_byte(addr);
@@ -365,11 +397,11 @@ cpu_tick(void) {
 			FLAG_SET(N, y & 0x80);
 			break;
 		case STY:
-			bus_write_byte(addr, y);
+			bus_write_byte(addr, y, 1);
 			break;
 		case JTS:
-			bus_write_byte(STACK_BEGIN + s--, p >> 8);
-			bus_write_byte(STACK_BEGIN + s--, p & 0xff);
+			bus_write_byte(STACK_BEGIN + s--, p >> 8, 1);
+			bus_write_byte(STACK_BEGIN + s--, p & 0xff, 1);
 			p = addr;
 			clock += 3;
 			break;
@@ -405,30 +437,38 @@ cpu_tick(void) {
 			assert(0);
 			break;
 	}
+}
+
+void
+cpu_rsu_tick(void) {
 	/* Screen Rendering Unit (SRU) */
-sru:
-	i8 scroll_x = bus_read_byte(SCROLL_X);
-	i8 scroll_y = bus_read_byte(SCROLL_Y);
-	i8 tile_x = scroll_x / 8 + tl.x;
-	i8 tile_y = scroll_y / 8 + tl.y;
-	if (tile_x <  0) tile_x = 32 + tile_x;
-	if (tile_y <  0) tile_y = 32 + tile_y;
-	if (tile_x > 31) tile_x = tile_x - 32;
-	if (tile_y > 31) tile_y = tile_y - 32;
-	u16 screen_index = SCREEN00 + ((tile_y > 15 << 1) + tile_x > 15) * 256 + (tile_y * 16 + tile_x);
-	if (tile_x > 15) tile_x -= 16;
-	if (tile_y > 15) tile_y -= 16;
-	assert(tile_x >= 0 && tile_y >= 0 && tile_x < 32 && tile_y < 32);
-	u8 tile_index = bus_read_byte(screen_index);
-	(void)tile_index;
-	/* TODO: get pixel and tile attributes */
-	px.x = px.x +     1;
-	px.y = px.y + !px.x;
-	if (!px.y) {
-		//printf("%x %d %u %u %u\n", screen_index, tile_y * 16 + tile_x, tile_x, tile_y, tile_index);
-		tl.x = tl.x +    1;
-		tl.y = tl.y + !tl.x;
-	}
+  union attributes attr = { bus_read_byte(BG_ATTR  + (tl.y * 16 + tl.x)) };
+  u16 tile  = bus_read_word(BG_TILES) + (bus_read_byte(SCREEN00 + (tl.y * 16 + tl.x)) * 16);
+  u8  pixel = (bus_read_byte(tile + px.y * 2 + (px.x > 3)) >> ((3 - (px.x % 4)) * 2)) & 0b11;
+  u8 color_x, color_y;
+  if (attr.rot90) {
+    color_x = tl.x * 8 + (attr.flip_x ? 7 - px.y : px.y);
+    color_y = tl.y * 8 + (attr.flip_y ? 7 - px.x : px.x);
+  } else {
+    color_x = tl.x * 8 + (attr.flip_x ? 7 - px.x : px.x);
+    color_y = tl.y * 8 + (attr.flip_y ? 7 - px.y : px.y);
+  }
+  if (attr.not_transparent || pixel != 0) {
+    u8 color = (bus_read_byte(bus_read_word(BG_PALS) + (attr.palette * 2) + (pixel > 1)) >> ((1 - (pixel % 2)) * 4)) & 0b1111;
+    crt_display_pixel(colors[color], color_x, color_y);
+  } else {
+    u8 color = (bus_read_byte(bus_read_word(BG_PALS)) >> 4) & 0b1111;
+    crt_display_pixel(colors[color], color_x, color_y);
+  }
+  /* go to next pixel */
+  px.x++;
+  if (px.x == 0) {
+    px.y++;
+    if (px.y == 0) {
+      tl.x++;
+      if (tl.x == 0) tl.y++;
+    }
+  }
 }
 
 i32
@@ -453,5 +493,5 @@ cpu_instruction_get(enum opcode opcode, enum addrmd addrmd) {
 	for (u32 i = 0; i < 0x100; i++) {
 		if (inst[i].opcode == opcode && inst[i].addrmd == addrmd) return i;
 	}
-	return 0;
+	return -1;
 }

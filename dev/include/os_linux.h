@@ -1,20 +1,22 @@
 #include <pthread.h>
 #include <string.h>
 #include <unistd.h>
-#include <unistd.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <dlfcn.h>
 #include <time.h>
+#include <types.h>
+#include <os.h>
 
 static i8              abs_path[MAX_PATH + 1];
 static i8              tmp_path[MAX_PATH + 129];
-static void           *glfw;
+static void           *glfw_lib;
 static u64             framerate;
 static struct timespec start_time;
 static struct timespec end_time;
+static struct glfw     glfw;
 
 i8 *
 resource_path(const i8 *dir, const i8 *name) {
@@ -22,9 +24,8 @@ resource_path(const i8 *dir, const i8 *name) {
 	return tmp_path;
 }
 
-void
-os_setup(void) {
-	/* setup resources path */
+static void
+setup_resource_path(void) {
 	i64 len = readlink("/proc/self/exe", abs_path, MAX_PATH);
 	if (len < 0) {
 		fprintf(stderr, "error: could not get the executable path: %s\n", strerror(errno));
@@ -36,22 +37,52 @@ os_setup(void) {
 		abs_path[i + 1] = '\0';
 		break;
 	}
-	/* get glfw library */
-	glfw = dlopen(resource_path("libs", "libglfw.so"), RTLD_LAZY);
-	if (!glfw) {
-		fprintf(stderr, "error: glfw not found\n");
-		exit(1);
-	}
 }
 
-void *
-glfw_func(const i8 *name) {
-	void *func = dlsym(glfw, name);
+static void *
+lib_load_func(void *library, const i8 *name) {
+	void *func = dlsym(library, name);
 	if (!func) {
 		fprintf(stderr, "error: could not find the function '%s'\n", name);
+    os_cleanup();
 		exit(1);
 	}
 	return func;
+}
+
+static void
+glfw_load() {
+	glfw_lib = dlopen(resource_path("libs", "libglfw.so"), RTLD_LAZY);
+	if (!glfw_lib) {
+		fprintf(stderr, "error: glfw not found\n");
+    os_cleanup();
+		exit(1);
+	}
+  glfw.init                 = lib_load_func(glfw_lib, "glfwInit");
+  glfw.get_error            = lib_load_func(glfw_lib, "glfwGetError");
+  glfw.window_hint          = lib_load_func(glfw_lib, "glfwWindowHint");
+  glfw.create_window        = lib_load_func(glfw_lib, "glfwCreateWindow");
+  glfw.window_should_close  = lib_load_func(glfw_lib, "glfwWindowShouldClose");
+  glfw.make_context_current = lib_load_func(glfw_lib, "glfwMakeContextCurrent");
+  glfw.poll_events          = lib_load_func(glfw_lib, "glfwPollEvents");
+  glfw.swap_buffers         = lib_load_func(glfw_lib, "glfwSwapBuffers");
+  glfw.get_primary_monitor  = lib_load_func(glfw_lib, "glfwGetPrimaryMonitor");
+  glfw.get_video_mode       = lib_load_func(glfw_lib, "glfwGetVideoMode");
+  glfw.set_window_pos       = lib_load_func(glfw_lib, "glfwSetWindowPos");
+  glfw.swap_interval        = lib_load_func(glfw_lib, "glfwSwapInterval");
+	glfw.get_proc_address     = lib_load_func(glfw_lib, "glfwGetProcAddress");
+	glfw.terminate            = lib_load_func(glfw_lib, "glfwTerminate");
+}
+
+void
+os_setup(void) {
+  setup_resource_path();
+  glfw_load();
+}
+
+struct glfw
+os_glfw_get(void) {
+  return glfw;
 }
 
 void
@@ -76,5 +107,5 @@ os_frame_end(void) {
 
 void
 os_cleanup(void) {
-	dlclose(glfw);
+	if (glfw_lib) dlclose(glfw_lib);
 }

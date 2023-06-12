@@ -1,16 +1,12 @@
-add instruction tree to the assembler
 proper assembler
-	instruction calls with parameters
-	labels
 	macros
-	structs
-rdu
-spu
+sprite rendering
+camera scrolling
+memory viewer
 handling crashes
 tile editor
 play button
-memory viewer
-text editor (vim mode first, then a somewhat normal mode)
+text editor (vim mode first, then a 'normal' text editor mode)
 export cartridges
 load cartridges
 save projects

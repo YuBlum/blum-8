@@ -1,0 +1,25 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-I",
+      "./include/",
+      "-I",
+      "/usr/include/GLFW/",
+      "-I",
+      "/usr/include/AL/",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-g",
+      "-c",
+      "-DLINUX",
+      "-o",
+      "bin/linux/crt.o",
+      "src/crt.c"
+    ],
+    "directory": "/home/blum/dev/blum-8/dev",
+    "file": "/home/blum/dev/blum-8/dev/src/crt.c",
+    "output": "/home/blum/dev/blum-8/dev/bin/linux/crt.o"
+  }
+]

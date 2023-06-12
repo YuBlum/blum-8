@@ -1,3 +1,4 @@
+#include "types.h"
 #include <os.h>
 #include <cpu.h>
 #include <bus.h>
@@ -15,12 +16,15 @@ enum {
 	TKN_CST, /* constant */
 	TKN_ADR, /* address */
 	TKN_ADS, /* address sufix */
+	TKN_CAD, /* current address */
 	TKN_INS, /* instruction */
 	TKN_ACS, /* access operator */
 	TKN_LBL, /* label */
 	TKN_MLB, /* most significant byte of label */
 	TKN_LLB, /* least significant byte of label */
 	TKN_STR, /* string */
+  TKN_PLS, /* plus */
+  TKN_MNS, /* minus */
 };
 
 enum lbltyp {
@@ -73,6 +77,7 @@ struct label {
 	b8            is_strdef;
 	b8            is_struct;
 	u32           strdef_idx;
+	u32           split_pos;
 	struct label *members;
 	union {
 		u16 size;
@@ -95,7 +100,6 @@ static struct constant predefined_constants[] = {
 	{ .name = "spr_pals",  .name_siz = 8, .is_word = 1, .word = SPR_PALS  },
 	{ .name = "scroll_x",  .name_siz = 8, .is_word = 1, .word = SCROLL_X  },
 	{ .name = "scroll_y",  .name_siz = 8, .is_word = 1, .word = SCROLL_Y  },
-	{ .name = "bg_tile",   .name_siz = 7, .is_word = 1, .word = BG_TILE   },
 };
 static u32 predefined_constants_amount = sizeof (predefined_constants) / sizeof (struct constant);
 
@@ -104,7 +108,7 @@ static struct token *tokens;
 static struct label *labels;
 static i8           *file_name;
 static const i8      separators[] = " \t\n";
-static const i8      operators[]  = ":&$%@.,<>";
+static const i8      operators[]  = ":&$%@.,<>+-";
 static i32
 get_label(struct label *labels, struct split string) {
 	for (u32 i = 0; i < arraylist_size(labels); i++) {
@@ -115,16 +119,23 @@ get_label(struct label *labels, struct split string) {
 }
 
 static b8
-label_validate(struct label *labels, struct split label_name) {
+label_validate(struct label *labels, struct split label_name, u32 position) {
 	i32 opcode = cpu_opcode_get(label_name.buf, label_name.siz);
 	if (opcode != -1) {
 		fprintf(stderr, "error: %s : %u,%u: trying to define label '%.*s', but it's an instruction\n",
 			 file_name, label_name.line, label_name.col, label_name.siz, label_name.buf);
 		return 0;
 	}
-	if (get_label(labels, label_name) != -1) {
+	i32 label = get_label(labels, label_name);
+	if (label != -1 && labels[label].split_pos != position) {
+		printf("%u %u\n", labels[label].split_pos, position);
 		fprintf(stderr, "error: %s : %u,%u: trying to redefine label '%.*s'\n",
 			 file_name, label_name.line, label_name.col, label_name.siz, label_name.buf);
+		return 0;
+	}
+	if (strchr(operators, label_name.buf[0])) {
+		fprintf(stderr, "error: %s : %u,%u: '%c' is not valid in a label definition\n",
+			 file_name, label_name.line, label_name.col, label_name.buf[0]);
 		return 0;
 	}
 	return 1;
@@ -137,7 +148,7 @@ get_keyword(struct split string) {
 			if (strncmp(string.buf, "str", string.siz) == 0) return KW_STR;
 			else return -1;
 		case 4:
-			     if (strncmp(string.buf, "byte", string.siz) == 0) return KW_BYTE;
+			if      (strncmp(string.buf, "byte", string.siz) == 0) return KW_BYTE;
 			else if (strncmp(string.buf, "word", string.siz) == 0) return KW_WORD;
 			else return -1;
 		case 6:
@@ -151,6 +162,7 @@ get_keyword(struct split string) {
 static b8 
 split(const i8 *source) {
 	splits = arraylist_alloc(sizeof (struct split));
+  if (!splits) return 0;
 	struct split *split = NULL;
 	b8  is_str = 0;
 	u32 line   = 1;
@@ -208,16 +220,126 @@ assemble_split:
 }
 
 static b8
-lex(void) {
-	tokens = arraylist_alloc(sizeof (struct token));
+gen_structs(void) {
 	labels = arraylist_alloc(sizeof (struct label));
+  if (!labels) return 0;
+	b8 in_struct_def = 0;
+	for (u32 i = 0; i < arraylist_size(splits); i++) {
+		u32 cur_str = 0;
+		if (!in_struct_def) {
+			if (
+				splits[i].buf[0] != '@'                 ||
+				i < 2                                   ||
+				i >= arraylist_size(splits) - 1         ||
+				get_keyword(splits[i + 1]) != KW_STRDEF ||
+				splits[i - 1].buf[0] != ':') continue;
+			if (!label_validate(labels, splits[i - 2], i)) return 0;
+			if (i + 2 >= arraylist_size(splits)) {
+				fprintf(stderr, "error: %s : %u,%u: empty struct definition\n",
+					 file_name, splits[i].line, splits[i].col);
+				return 0;
+			}
+			labels = arraylist_push(
+				labels,
+				&(struct label) {
+					.string    = splits[i - 2], 
+					.members   = arraylist_alloc(sizeof (struct label)),
+					.is_strdef = 1,
+					.is_struct = 0,
+					.size      = 0,
+					.split_pos = i - 2
+				}
+			);
+			cur_str = arraylist_size(labels) - 1;
+			i += 2;
+			in_struct_def = 1;
+		}
+		if (!label_validate(labels[cur_str].members, splits[i], i)) return 0;
+		if (i + 1 >= arraylist_size(splits) || splits[i + 1].buf[0] != ':')  {
+			fprintf(stderr, "error: %s : %u,%u: label call is not valid in a struct definition (forgot ':' ?)\n",
+				 file_name, splits[i].line, splits[i].col);
+			return 0;
+		}
+		labels[cur_str].members = arraylist_push(
+      labels[cur_str].members,
+      &(struct label) { .string = splits[i], .offset = labels[cur_str].size, .is_strdef = 0, .split_pos = i }
+    );
+		i++;
+		if (i + 2 >= arraylist_size(splits) || splits[i + 1].buf[0] != '@'
+    || (get_keyword(splits[i + 2]) != KW_BYTE && get_keyword(splits[i + 2]) != KW_WORD)) {
+			fprintf(stderr, "error: %s : %u,%u: only variable labels are valid inside a struct definition\n",
+				 file_name, splits[i].line, splits[i].col);
+			return 0;
+		}
+		i += 2;
+		switch (get_keyword(splits[i])) {
+			case KW_BYTE:
+				labels[cur_str].size++;
+				break;
+			case KW_WORD:
+				labels[cur_str].size += 2;
+				break;
+			default:
+				assert(0);
+				break;
+		}
+		if (i + 1 < arraylist_size(splits) && splits[i + 1].buf[0] != ',') in_struct_def = 0;
+		else i++;
+	}
+	return 1;
+}
+
+static b8
+lex_number(u32 *index, u32 *code_ptr, u32 base, i8 prefix, b8 address) {
+  i8 *invalid_char;
+  if (*index + 1 > arraylist_size(splits) - 1) {
+    fprintf(stderr, "error: %s : %u,%u: '%c' prefix without a %s\n",
+    file_name, splits[*index].line, splits[*index].col, prefix, address ? "address" : "constant");
+    return 0;
+  }
+  (*index)++;
+  u32 num = strtoul(splits[*index].buf, &invalid_char, base);
+  if (splits[*index].siz == 1 && splits[*index].buf[0] == '.' && address) {
+    *code_ptr += 2;
+    tokens = arraylist_push(tokens, &(struct token) { TKN_CAD, .addrmd = ADR });
+    return 1;
+  } else if (splits[*index].buf + splits[*index].siz != invalid_char) {
+    fprintf(stderr, "error: %s : %u,%u: '%c%.*s' is not a valid %s\n",
+    file_name, splits[*index].line, splits[*index].col, prefix, splits[*index].siz, splits[*index].buf, address ? "address" : "constant");
+    return 0;
+  }
+  (*code_ptr)++;
+  if (address) {
+    if (num > 0xffff) {
+      fprintf(stderr, "error: %s : %u,%u: address '%.*s' is greater than 2 bytes long\n",
+         file_name, splits[*index].line, splits[*index].col, splits[*index].siz, splits[*index].buf);
+      return 0;
+    }
+    u32 addrmd = ZPG;
+    if (num > 0xff) {
+      addrmd = ADR;
+      (*code_ptr)++;
+    }
+    tokens = arraylist_push(tokens, &(struct token) { TKN_ADR, .word = num, .addrmd = addrmd });
+  } else {
+    if (num > 0xff) {
+      fprintf(stderr, "error: %s : %u,%u: constant '%c%.*s' is greater than 1 byte long\n",
+      file_name, splits[*index].line, splits[*index].col, prefix, splits[*index].siz, splits[*index].buf);
+      return 0;
+    }
+    tokens = arraylist_push(tokens, &(struct token) { TKN_CST, .byte = num, .addrmd = CST });
+  }
+  return 1;
+}
+
+static b8
+lex(void) {
 	u32 code_ptr = ROM_BEGIN;
+	tokens = arraylist_alloc(sizeof (struct token));
 	u16 memory_pointer = 0x0000;
 	for (u32 i = 0; i < arraylist_size(splits); i++) {
 		i32 opcode;
-		u32 hex, bin;
 		u32 addrmd = NOA;
-		i8 *invalid_char;
 		if (splits[i].string_literal) {
 			code_ptr += splits[i].siz;
 			tokens = arraylist_push(tokens, &(struct token) { TKN_STR, .string = splits[i], .addrmd = CST });
@@ -228,13 +350,13 @@ lex(void) {
 			if (splits[i].siz != predefined_constants[j].name_siz || strncmp(predefined_constants[j].name, splits[i].buf, splits[i].siz) != 0) continue;
 			u8 tkn_type = TKN_CST;
 			addrmd = CST;
-			code_ptr++;
 			if (predefined_constants[j].is_word) {
 				tkn_type = TKN_ADR;
 				addrmd = ZPG;
+				code_ptr++;
 				if (predefined_constants[j].word > 0xff) {
-					addrmd = ADR;
 					code_ptr++;
+					addrmd = ADR;
 				}
 			}
 			tokens = arraylist_push(tokens, &(struct token) { tkn_type, .word = predefined_constants[j].word, .addrmd = addrmd });
@@ -244,81 +366,36 @@ lex(void) {
 		if (predefined_constant) continue;
 		switch (splits[i].buf[0]) {
 			case '%':
-				if (i + 1 > arraylist_size(splits) - 1) {
-					fprintf(stderr, "error: %s : %u,%u: '%%' prefix without a constant\n",
-						 file_name, splits[i].line, splits[i].col);
-					return 0;
-				}
-				i++;
-				bin = strtoul(splits[i].buf, &invalid_char, 2);
-				if (splits[i].buf + splits[i].siz != invalid_char) {
-					fprintf(stderr, "error: %s : %u,%u: '%.*s' is not a bin number\n",
-						 file_name, splits[i].line, splits[i].col, splits[i].siz, splits[i].buf);
-					return 0;
-				}
-				if (bin > 0b11111111) {
-					fprintf(stderr, "error: %s : %u,%u: constant '%.*s' is greater than 1 byte long\n",
-						 file_name, splits[i].line, splits[i].col, splits[i].siz, splits[i].buf);
-					return 0;
-				}
-				code_ptr++;
-				tokens = arraylist_push(tokens, &(struct token) { TKN_CST, .byte = bin, .addrmd = CST });
+        if (!lex_number(&i, &code_ptr, 2, '%', 0)) return 0;
 				break;
 			case '$':
-				if (i + 1 > arraylist_size(splits) - 1) {
-					fprintf(stderr, "error: %s : %u,%u: '%%' prefix without a constant\n",
-						 file_name, splits[i].line, splits[i].col);
-					return 0;
-				}
-				i++;
-				hex = strtoul(splits[i].buf, &invalid_char, 16);
-				if (splits[i].buf + splits[i].siz != invalid_char) {
-					fprintf(stderr, "error: %s : %u,%u: '%.*s' is not a hex number\n",
-						 file_name, splits[i].line, splits[i].col, splits[i].siz, splits[i].buf);
-					return 0;
-				}
-				if (hex > 0xff) {
-					fprintf(stderr, "error: %s : %u,%u: constant '%.*s' is greater than 1 byte long\n",
-						 file_name, splits[i].line, splits[i].col, splits[i].siz, splits[i].buf);
-					return 0;
-				}
-				code_ptr++;
-				tokens = arraylist_push(tokens, &(struct token) { TKN_CST, .byte = hex, .addrmd = CST });
+        if (!lex_number(&i, &code_ptr, 16, '$', 0)) return 0;
 				break;
 			case '&':
-				if (i + 1 > arraylist_size(splits) - 1) {
-					fprintf(stderr, "error: %s : %u,%u: '$' prefix without an address\n",
+        if (!lex_number(&i, &code_ptr, 16, '&', 1)) return 0;
+				break;
+      case '+':
+        if (i == 0 || (tokens[i - 1].type != TKN_CST && tokens[i - 1].type != TKN_ADR)) {
+					fprintf(stderr, "error: %s : %u,%u: missing left hand side of binary operator '+'\n",
 						 file_name, splits[i].line, splits[i].col);
 					return 0;
-				}
-				i++;
-				hex = strtoul(splits[i].buf, &invalid_char, 16);
-				if (splits[i].siz == 1 && splits[i].buf[0] == '.') {
-					hex = code_ptr - 1;
-				} else if (splits[i].buf + splits[i].siz != invalid_char) {
-					fprintf(stderr, "error: %s : %u,%u: '%.*s' is not a hex number\n",
-						 file_name, splits[i].line, splits[i].col, splits[i].siz, splits[i].buf);
+        }
+        if (i >= arraylist_size(tokens) - 1) {
+					fprintf(stderr, "error: %s : %u,%u: missing right hand side of binary operator '+'\n",
+						 file_name, splits[i].line, splits[i].col);
 					return 0;
-				}
-				if (hex > 0xffff) {
-					fprintf(stderr, "error: %s : %u,%u: address '%.*s' is greater than 2 bytes long\n",
-						 file_name, splits[i].line, splits[i].col, splits[i].siz, splits[i].buf);
-					return 0;
-				}
-				addrmd = ZPG;
-				code_ptr++;
-				if (hex > 0xff) {
-					addrmd = ADR;
-					code_ptr++;
-				}
-				tokens = arraylist_push(tokens, &(struct token) { TKN_ADR, .word = hex, .addrmd = addrmd });
-				break;
+        }
+        tokens = arraylist_push(tokens, &(struct token) { .type = TKN_PLS });
+        assert(0 && "TODO");
+        break;
+      case '-':
+        break;
 			case ',':
 				if (i == 0 || (
 					tokens[arraylist_size(tokens) - 1].type != TKN_LBL &&
 					tokens[arraylist_size(tokens) - 1].type != TKN_ADR)) {
-					fprintf(stderr, "error: %s : %u,%u: missing address before ',' %d\n",
-						 file_name, splits[i].line, splits[i].col, tokens[arraylist_size(tokens) - 1].type);
+					fprintf(stderr, "error: %s : %u,%u: missing address before ','\n",
+						 file_name, splits[i].line, splits[i].col);
 					return 0;
 				}
 				if (i + 1 > arraylist_size(splits) - 1) {
@@ -345,9 +422,10 @@ lex(void) {
 					return 0;
 				}
 				i--;
-				if (!label_validate(labels, splits[i])) return 0;
-				labels = arraylist_push(labels, &(struct label) { .string = splits[i], .addr = code_ptr, .is_strdef = 0, .is_struct = 0 });
+				if (!label_validate(labels, splits[i], i)) return 0;
 				if (i + 2 < arraylist_size(splits) && splits[i + 2].buf[0] == '@') {
+					labels = arraylist_push(
+							labels, &(struct label) { .string = splits[i], .addr = memory_pointer, .is_strdef = 0, .is_struct = 0, .split_pos = i });
 					i += 2;
 					if (i + 1 >= arraylist_size(splits)) {
 						fprintf(stderr, "error: %s : %u,%u: '@' needs to be followed by a keyword\n",
@@ -361,7 +439,6 @@ lex(void) {
 							 file_name, splits[i].line, splits[i].col, splits[i].siz, splits[i].buf);
 						return 0;
 					}
-					labels[arraylist_size(labels) - 1].addr = memory_pointer;
 					i32 str;
 					switch (keyword) {
 						case KW_BYTE:
@@ -387,53 +464,9 @@ lex(void) {
 							memory_pointer += labels[str].size;
 							break;
 						case KW_STRDEF:
-							if (i + 1 >= arraylist_size(splits)) {
-								fprintf(stderr, "error: %s : %u,%u: empty struct definition\n",
-									 file_name, splits[i].line, splits[i].col);
-								return 0;
-							}
-							labels[arraylist_size(labels) - 1].is_strdef = 1;
-							labels[arraylist_size(labels) - 1].members   = arraylist_alloc(sizeof (struct label));
-							labels[arraylist_size(labels) - 1].size      = 0;
-							for (i++; i < arraylist_size(splits); i++) {
-								if (strchr(operators, splits[i].buf[0])) {
-									fprintf(stderr, "error: %s : %u,%u: '%c' is not valid in a label definition\n",
-										 file_name, splits[i].line, splits[i].col, splits[i].buf[0]);
-									return 0;
-								}
-								if (!label_validate(labels[arraylist_size(labels) - 1].members, splits[i])) {
-									return 0;
-								}
-								if (i + 1 >= arraylist_size(splits) || splits[i + 1].buf[0] != ':')  {
-									fprintf(stderr, "error: %s : %u,%u: label call is not valid in a struct definition (forgot ':' ?)\n",
-										 file_name, splits[i].line, splits[i].col);
-									return 0;
-								}
-								labels[arraylist_size(labels) - 1].members = arraylist_push(
-										labels[arraylist_size(labels) - 1].members,
-										&(struct label) { .string = splits[i], .offset = labels[arraylist_size(labels) - 1].size, .is_strdef = 0 });
-								i++;
-								if (i + 2 >= arraylist_size(splits)
-									|| splits[i + 1].buf[0] != '@'
-									|| (get_keyword(splits[i + 2]) != KW_BYTE && get_keyword(splits[i + 2]) != KW_WORD))  {
-									fprintf(stderr, "error: %s : %u,%u: only variable labels are valid inside a struct definition\n",
-										 file_name, splits[i].line, splits[i].col);
-									return 0;
-								}
-								i += 2;
-								switch (get_keyword(splits[i])) {
-									case KW_BYTE:
-										labels[arraylist_size(labels) - 1].size++;
-										break;
-									case KW_WORD:
-										labels[arraylist_size(labels) - 1].size += 2;
-										break;
-									default:
-										assert(0);
-										break;
-								}
-								if (i + 1 < arraylist_size(splits) && splits[i + 1].buf[0] != ',') break;
-								else i++;
+							arraylist_pop(labels, NULL);
+							for (i += 5; i < arraylist_size(splits); i += 5) {
+								if (splits[i].buf[0] != ',') break;
 							}
 							break;
 						default:
@@ -441,6 +474,8 @@ lex(void) {
 							break;
 					}
 				} else {
+					labels = arraylist_push(
+							labels, &(struct label) { .string = splits[i], .addr = code_ptr, .is_strdef = 0, .is_struct = 0, .split_pos = i });
 					i++;
 				}
 				break;
@@ -469,16 +504,17 @@ lex(void) {
 			default:
 				opcode = cpu_opcode_get(splits[i].buf, splits[i].siz);
 				if (opcode != -1) {
-					tokens = arraylist_push(tokens, &(struct token) { TKN_INS, .opcode = opcode, .addrmd = NOA});
 					code_ptr++;
+					tokens = arraylist_push(tokens, &(struct token) { TKN_INS, .opcode = opcode, .addrmd = NOA});
 				} else if (i >= arraylist_size(splits) - 1 || splits[i + 1].buf[0] != ':') {
 					enum lbltyp lbltyp = LTP_NORMAL;
 					if (i > 0 && splits[i - 1].siz == 1) {
 						lbltyp = splits[i - 1].buf[0] == '<' ? LTP_LEAST : splits[i - 1].buf[0] == '>' ? LTP_MOST : LTP_NORMAL;
 					}
-					code_ptr++;
-					tokens = arraylist_push(tokens, &(struct token) { TKN_LBL, .string = splits[i], .addrmd = lbltyp == LTP_NORMAL ? ADR : ZPG, .lbltyp = lbltyp });
-					code_ptr += lbltyp == LTP_NORMAL ;
+					code_ptr += 1 + (lbltyp == LTP_NORMAL);
+					tokens = arraylist_push(tokens, &(struct token) {
+            TKN_LBL, .string = splits[i], .addrmd = lbltyp == LTP_NORMAL ? ADR : CST, .lbltyp = lbltyp
+          });
 				}
 				break;
 		}
@@ -498,7 +534,7 @@ parse(void) {
 					putchar('\n');
 					printf("[%.4x]", code_ptr);
 				}
-				bus_write_byte(code_ptr++, tokens[i].byte);
+				bus_write_byte(code_ptr++, tokens[i].byte, 0);
 				printf(" $%.2x", tokens[i].byte);
 				break;
 			case TKN_ADR:
@@ -507,16 +543,25 @@ parse(void) {
 					printf("[%.4x]", code_ptr);
 				}
 				if (tokens[i].addrmd == ZPG) {
-					bus_write_byte(code_ptr++, tokens[i].byte);
+					bus_write_byte(code_ptr++, tokens[i].byte, 0);
 					printf(" &%.2x", tokens[i].byte);
 				} else {
-					bus_write_word(code_ptr++, tokens[i].word);
+					bus_write_word(code_ptr, tokens[i].word, 0);
 					printf(" &%.4x", tokens[i].word);
+					code_ptr += 2;
 				}
+				break;
+			case TKN_CAD:
+				if (i == 0 || tokens[i - 1].type != TKN_INS || tokens[i - 1].addrmd == NOA || tokens[i - 1].addrmd == CST) {
+					putchar('\n');
+					printf("[%.4x]", code_ptr - 1);
+				}
+				bus_write_word(code_ptr, code_ptr - 1, 0);
+				printf(" &%.4x", code_ptr - 1);
+				code_ptr += 2;
 				break;
 			case TKN_INS:
 				if (i > 0) putchar('\n');
-				printf("[%.4x] %s", code_ptr, cpu_opcode_str(tokens[i].opcode));
 				if (i < arraylist_size(tokens) - 1) {
 					if (i + 1 < arraylist_size(tokens) - 1 && tokens[i + 2].type == TKN_ADS) {
 						tokens[i].addrmd = tokens[i + 2].addrmd;
@@ -524,11 +569,13 @@ parse(void) {
 						tokens[i].addrmd = tokens[i + 1].addrmd;
 					}
 				}
-				bus_write_byte(code_ptr, cpu_instruction_get(tokens[i].opcode, tokens[i].addrmd));
-				code_ptr += 2;
+				printf("[%.4x] %s", code_ptr, cpu_opcode_str(tokens[i].opcode));
+				bus_write_byte(code_ptr++, cpu_instruction_get(tokens[i].opcode, tokens[i].addrmd), 0);
 				break;
 			case TKN_LBL:
-				if (i == 0 || tokens[i - 1].type != TKN_INS || tokens[i - 1].addrmd == NOA || tokens[i - 1].addrmd == CST) {
+				if (i == 0 || tokens[i - 1].type != TKN_INS || tokens[i - 1].addrmd == NOA ||
+					(tokens[i - 1].addrmd == CST && tokens[i].lbltyp == LTP_NORMAL) ||
+					(tokens[i - 1].addrmd != CST && tokens[i].lbltyp != LTP_NORMAL)) {
 					putchar('\n');
 					printf("[%.4x]", code_ptr);
 				}
@@ -539,7 +586,7 @@ parse(void) {
 					return 0;
 				}
 				if (labels[label].is_strdef) {
-					fprintf(stderr, "error: %s : %u,%u: label '%.*s' is not an access label\n",
+					fprintf(stderr, "error: %s : %u,%u: label '%.*s' is a struct type\n",
 						 file_name, tokens[i].string.line, tokens[i].string.col, tokens[i].string.siz, tokens[i].string.buf);
 					return 0;
 				}
@@ -562,14 +609,14 @@ parse(void) {
 				}
 				if (tokens[i].lbltyp == LTP_NORMAL) {
 					printf(" &%.4x", addr);
-					bus_write_word(code_ptr, addr);
+					bus_write_word(code_ptr, addr, 0);
 					code_ptr += 2;
 				} else if (tokens[i].lbltyp == LTP_LEAST) {
-					printf(" &%.2x", addr & 0xff);
-					bus_write_byte(code_ptr++, addr & 0xff);
+					printf(" $%.2x", addr & 0xff);
+					bus_write_byte(code_ptr++, addr & 0xff, 0);
 				} else if (tokens[i].lbltyp == LTP_MOST) {
-					printf(" &%.2x", addr >> 8);
-					bus_write_byte(code_ptr++, addr >> 8); 
+					printf(" $%.2x", addr >> 8);
+					bus_write_byte(code_ptr++, addr >> 8, 0); 
 				} else {
 					assert(0);
 				}
@@ -578,7 +625,7 @@ parse(void) {
 				printf("\n[%.4x]", code_ptr);
 				for (u32 j = 0; j < tokens[i].string.siz; j++) {
 					printf(" $%.2x", tokens[i].string.buf[j]);
-					bus_write_byte(code_ptr++, tokens[i].string.buf[j]);
+					bus_write_byte(code_ptr++, tokens[i].string.buf[j], 0);
 				}
 				break;
 			default:
@@ -612,8 +659,7 @@ assemble(i8 *name) {
 	fread(source, 1, file_size, file);
 	source[file_size] = '\0';
 	fclose(file);
-	error = split(source) && lex() && parse();
-	printf("%d\n", error);
+	error = split(source) && gen_structs() && lex() && parse();
 	free(source);
 	if (splits) arraylist_free(splits);
 	if (tokens) arraylist_free(tokens);
