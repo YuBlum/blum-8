@@ -439,27 +439,65 @@ cpu_tick(void) {
 	}
 }
 
+static b8
+sprite_render(b8 below) {
+  u8 screen_pixel_x = tl.x * 8 + px.x;
+  u8 screen_pixel_y = tl.y * 8 + px.y;
+  b8 result = 0;
+  for (i32 i = 63; i >= 0; i--) {
+    union attributes attr = { bus_read_byte(SPR_ATTR + i * 4 + 3) };
+    if (!attr.enabled || (below && !attr.below) || (!below && attr.below)) continue;
+    u8 pos_x = bus_read_byte(SPR_ATTR + i * 4 + 0);
+    u8 pos_y = bus_read_byte(SPR_ATTR + i * 4 + 1);
+    if ((screen_pixel_x < pos_x || screen_pixel_x >= pos_x + 8)
+     || (screen_pixel_y < pos_y || screen_pixel_y >= pos_y + 8)) continue;
+    u16 tile = bus_read_word(SPR_TILES) + bus_read_byte(SPR_ATTR + i * 4 + 2) * 16;
+    u8 pixel_x = screen_pixel_x - pos_x;
+    u8 pixel_y = screen_pixel_y - pos_y;
+    if (attr.rot90) {
+      pixel_x = attr.flip_x ? 7 - pixel_y : pixel_y;
+      pixel_y = attr.flip_y ? 7 - pixel_x : pixel_x;
+    } else {
+      pixel_x = attr.flip_x ? 7 - pixel_x : pixel_x;
+      pixel_y = attr.flip_y ? 7 - pixel_y : pixel_y;
+    }
+    u8 pixel = (bus_read_byte(tile + pixel_y * 2 + (pixel_x > 3)) >> ((3 - (pixel_x % 4)) * 2)) & 0b11;
+    if (attr.not_transparent || pixel != 0) {
+      u8 color = (bus_read_byte(bus_read_word(SPR_PALS) + (attr.palette * 2) + (pixel > 1)) >> ((1 - (pixel % 2)) * 4)) & 0b1111;
+      crt_display_pixel(colors[color], screen_pixel_x, screen_pixel_y);
+      result = 1;
+    } else if (below) {
+      u8 color = (bus_read_byte(bus_read_word(BG_PALS)) >> 4) & 0b1111;
+      crt_display_pixel(colors[color], screen_pixel_x, screen_pixel_y);
+    }
+  }
+  return result;
+}
+
 void
 cpu_rsu_tick(void) {
 	/* Screen Rendering Unit (SRU) */
+  /* background tiles */
+  b8 have_pixel = sprite_render(1);
   union attributes attr = { bus_read_byte(BG_ATTR  + (tl.y * 16 + tl.x)) };
   u16 tile  = bus_read_word(BG_TILES) + (bus_read_byte(SCREEN00 + (tl.y * 16 + tl.x)) * 16);
-  u8  pixel = (bus_read_byte(tile + px.y * 2 + (px.x > 3)) >> ((3 - (px.x % 4)) * 2)) & 0b11;
-  u8 color_x, color_y;
+  u8 pixel_x = px.x, pixel_y = px.y;
   if (attr.rot90) {
-    color_x = tl.x * 8 + (attr.flip_x ? 7 - px.y : px.y);
-    color_y = tl.y * 8 + (attr.flip_y ? 7 - px.x : px.x);
+    pixel_x = attr.flip_x ? 7 - px.y : px.y;
+    pixel_y = attr.flip_y ? 7 - px.x : px.x;
   } else {
-    color_x = tl.x * 8 + (attr.flip_x ? 7 - px.x : px.x);
-    color_y = tl.y * 8 + (attr.flip_y ? 7 - px.y : px.y);
+    pixel_x = attr.flip_x ? 7 - px.x : px.x;
+    pixel_y = attr.flip_y ? 7 - px.y : px.y;
   }
+  u8  pixel = (bus_read_byte(tile + pixel_y * 2 + (pixel_x > 3)) >> ((3 - (pixel_x % 4)) * 2)) & 0b11;
   if (attr.not_transparent || pixel != 0) {
     u8 color = (bus_read_byte(bus_read_word(BG_PALS) + (attr.palette * 2) + (pixel > 1)) >> ((1 - (pixel % 2)) * 4)) & 0b1111;
-    crt_display_pixel(colors[color], color_x, color_y);
-  } else {
+    crt_display_pixel(colors[color], tl.x * 8 + px.x, tl.y * 8 + px.y);
+  } else if (!have_pixel) {
     u8 color = (bus_read_byte(bus_read_word(BG_PALS)) >> 4) & 0b1111;
-    crt_display_pixel(colors[color], color_x, color_y);
+    crt_display_pixel(colors[color], tl.x * 8 + px.x, tl.y * 8 + px.y);
   }
+  sprite_render(0);
   /* go to next pixel */
   px.x++;
   if (px.x == 0) {

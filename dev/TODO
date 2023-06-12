@@ -1,6 +1,5 @@
 proper assembler
 	macros
-sprite rendering
 camera scrolling
 memory viewer
 handling crashes

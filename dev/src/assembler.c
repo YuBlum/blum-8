@@ -126,6 +126,13 @@ label_validate(struct label *labels, struct split label_name, u32 position) {
 			 file_name, label_name.line, label_name.col, label_name.siz, label_name.buf);
 		return 0;
 	}
+  for (u32 i = 0; i < predefined_constants_amount; i++) {
+    if (strlen(predefined_constants[i].name) == label_name.siz && strncmp(label_name.buf, predefined_constants[i].name, label_name.siz) == 0) {
+      fprintf(stderr, "error: %s : %u,%u: trying to define label '%.*s', but it's an predefined constant\n",
+         file_name, label_name.line, label_name.col, label_name.siz, label_name.buf);
+      return 0;
+    }
+  }
 	i32 label = get_label(labels, label_name);
 	if (label != -1 && labels[label].split_pos != position) {
 		printf("%u %u\n", labels[label].split_pos, position);
