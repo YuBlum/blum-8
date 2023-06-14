@@ -17,7 +17,7 @@ struct glfw {
   void *(*get_video_mode)(void *);
   void *(*set_window_pos)(void *, i32, i32);
   void  (*swap_interval)(i32);
-	void *(*get_proc_address)(const i8 *);
+  void *(*get_proc_address)(const i8 *);
   i32   (*get_key)(void *, i32);
 };
 

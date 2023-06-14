@@ -4,24 +4,24 @@
 #include <types.h>
 
 enum opcode {
-	NOP, INX, DEX, INY, DEY, ZRX, ZRY, PSH, POP,
-	PSF, POF, RET, EXT, DLY, TZY, TZX, TYZ, TYX,
-	TXZ, TXY, SZY, SZX, SXY, SEC, SEV, CLC, CLV,
-	SHR, SHL, ROR, ROL, AND, LOR, XOR, INC, DEC,
-	ADC, SBC, LDZ, STZ, LDX, STX, LDY, STY, JTS,
-	JMP, JEQ, JLE, JGR, JNE, JNL, JNG, JPV, JNV,
-	JPN, JNN, JPC, JNC, CMP, CPX, CPY,
-	OPCODE_COUNT
+  NOP, INX, DEX, INY, DEY, ZRX, ZRY, PSH, POP,
+  PSF, POF, RET, EXT, DLY, TZY, TZX, TYZ, TYX,
+  TXZ, TXY, SZY, SZX, SXY, SEC, SEV, CLC, CLV,
+  SHR, SHL, ROR, ROL, AND, LOR, XOR, INC, DEC,
+  ADC, SBC, LDZ, STZ, LDX, STX, LDY, STY, JTS,
+  JMP, JEQ, JLE, JGR, JNE, JNL, JNG, JPV, JNV,
+  JPN, JNN, JPC, JNC, CMP, CPX, CPY,
+  OPCODE_COUNT
 };
 
 enum addrmd {
-	NOA, CST, ZPG, ZPX,
-	ZPY, ADR, ADX, ADY,
+  NOA, CST, ZPG, ZPX,
+  ZPY, ADR, ADX, ADY,
 };
 
 struct cpuarg {
-	b8 run;
-	f64 (*time)(void);
+  b8 run;
+  f64 (*time)(void);
 };
 
 void cpu_print_registers(void);
