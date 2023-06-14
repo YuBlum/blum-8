@@ -1,6 +1,6 @@
 #include <os.h>
 #include <cpu.h>
-#include <crt.h>
+#include <renderer.h>
 #include <glfw3.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +27,11 @@ window_center(void) {
 }
 
 b8
+window_key_get(u32 key) {
+  return glfw.get_key(window, key) == GLFW_PRESS;
+}
+
+b8
 window_open(void) {
   glfw = os_glfw_get();
 	if (!glfw.init()) {
@@ -49,7 +54,7 @@ window_open(void) {
 	}
 	glfw.make_context_current(window);
 	glfw.swap_interval(0); /* deactivate vsync */
-  if (!window_center() || !crt_begin(&glfw)) {
+  if (!window_center() || !renderer_begin(&glfw)) {
 		glfw.terminate();
     return 0;
   }
@@ -65,7 +70,7 @@ window_loop(void) {
 			cpu_tick();
 			cpu_rsu_tick();
 		}
-		crt_update();
+		renderer_update();
 		glfw.poll_events();
 		glfw.swap_buffers(window);
 		os_frame_end();
@@ -74,6 +79,6 @@ window_loop(void) {
 
 void
 window_close(void) {
-	crt_end();
+	renderer_end();
 	glfw.terminate();
 }

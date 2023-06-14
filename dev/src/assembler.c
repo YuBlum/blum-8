@@ -10,6 +10,8 @@
 #include <arraylist.h>
 #include <assembler.h>
 
+#define DISASSEMBLE 0
+
 #define MAX(V1, V2) (V1 > V2 ? V1 : V2)
 
 enum {
@@ -135,7 +137,6 @@ label_validate(struct label *labels, struct split label_name, u32 position) {
   }
 	i32 label = get_label(labels, label_name);
 	if (label != -1 && labels[label].split_pos != position) {
-		printf("%u %u\n", labels[label].split_pos, position);
 		fprintf(stderr, "error: %s : %u,%u: trying to redefine label '%.*s'\n",
 			 file_name, label_name.line, label_name.col, label_name.siz, label_name.buf);
 		return 0;
@@ -537,38 +538,51 @@ parse(void) {
 	for (u32 i = 0; i < arraylist_size(tokens); i++) {
 		switch (tokens[i].type) {
 			case TKN_CST:
+#if DISASSEMBLE
 				if (i == 0 || tokens[i - 1].type != TKN_INS || tokens[i - 1].addrmd != CST) {
 					putchar('\n');
 					printf("[%.4x]", code_ptr);
 				}
-				bus_write_byte(code_ptr++, tokens[i].byte, 0);
 				printf(" $%.2x", tokens[i].byte);
+#endif
+				bus_write_byte(code_ptr++, tokens[i].byte, 0);
 				break;
 			case TKN_ADR:
+#if DISASSEMBLE
 				if (i == 0 || tokens[i - 1].type != TKN_INS || tokens[i - 1].addrmd == NOA || tokens[i - 1].addrmd == CST) {
 					putchar('\n');
 					printf("[%.4x]", code_ptr);
 				}
+#endif
 				if (tokens[i].addrmd == ZPG) {
 					bus_write_byte(code_ptr++, tokens[i].byte, 0);
+#if DISASSEMBLE
 					printf(" &%.2x", tokens[i].byte);
+#endif
 				} else {
 					bus_write_word(code_ptr, tokens[i].word, 0);
+#if DISASSEMBLE
 					printf(" &%.4x", tokens[i].word);
+#endif
 					code_ptr += 2;
 				}
 				break;
 			case TKN_CAD:
+#if DISASSEMBLE
 				if (i == 0 || tokens[i - 1].type != TKN_INS || tokens[i - 1].addrmd == NOA || tokens[i - 1].addrmd == CST) {
 					putchar('\n');
 					printf("[%.4x]", code_ptr - 1);
 				}
-				bus_write_word(code_ptr, code_ptr - 1, 0);
 				printf(" &%.4x", code_ptr - 1);
+#endif
+				bus_write_word(code_ptr, code_ptr - 1, 0);
 				code_ptr += 2;
 				break;
 			case TKN_INS:
+#if DISASSEMBLE
 				if (i > 0) putchar('\n');
+				printf("[%.4x] %s", code_ptr, cpu_opcode_str(tokens[i].opcode));
+#endif
 				if (i < arraylist_size(tokens) - 1) {
 					if (i + 1 < arraylist_size(tokens) - 1 && tokens[i + 2].type == TKN_ADS) {
 						tokens[i].addrmd = tokens[i + 2].addrmd;
@@ -576,16 +590,17 @@ parse(void) {
 						tokens[i].addrmd = tokens[i + 1].addrmd;
 					}
 				}
-				printf("[%.4x] %s", code_ptr, cpu_opcode_str(tokens[i].opcode));
 				bus_write_byte(code_ptr++, cpu_instruction_get(tokens[i].opcode, tokens[i].addrmd), 0);
 				break;
 			case TKN_LBL:
+#if DISASSEMBLE
 				if (i == 0 || tokens[i - 1].type != TKN_INS || tokens[i - 1].addrmd == NOA ||
 					(tokens[i - 1].addrmd == CST && tokens[i].lbltyp == LTP_NORMAL) ||
 					(tokens[i - 1].addrmd != CST && tokens[i].lbltyp != LTP_NORMAL)) {
 					putchar('\n');
 					printf("[%.4x]", code_ptr);
 				}
+#endif
 				label = get_label(labels, tokens[i].string);
 				if (label == -1) {
 					fprintf(stderr, "error: %s : %u,%u: label '%.*s' is not defined\n",
@@ -615,23 +630,33 @@ parse(void) {
 					i--;
 				}
 				if (tokens[i].lbltyp == LTP_NORMAL) {
+#if DISASSEMBLE
 					printf(" &%.4x", addr);
+#endif
 					bus_write_word(code_ptr, addr, 0);
 					code_ptr += 2;
 				} else if (tokens[i].lbltyp == LTP_LEAST) {
+#if DISASSEMBLE
 					printf(" $%.2x", addr & 0xff);
+#endif
 					bus_write_byte(code_ptr++, addr & 0xff, 0);
 				} else if (tokens[i].lbltyp == LTP_MOST) {
+#if DISASSEMBLE
 					printf(" $%.2x", addr >> 8);
+#endif
 					bus_write_byte(code_ptr++, addr >> 8, 0); 
 				} else {
 					assert(0);
 				}
 				break;
 			case TKN_STR:
+#if DISASSEMBLE
 				printf("\n[%.4x]", code_ptr);
+#endif
 				for (u32 j = 0; j < tokens[i].string.siz; j++) {
+#if DISASSEMBLE
 					printf(" $%.2x", tokens[i].string.buf[j]);
+#endif
 					bus_write_byte(code_ptr++, tokens[i].string.buf[j], 0);
 				}
 				break;
@@ -639,7 +664,9 @@ parse(void) {
 				break;
 		}
 	}
+#if DISASSEMBLE
 	putchar('\n');
+#endif
 	return 1;
 }
 

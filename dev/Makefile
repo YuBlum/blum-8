@@ -22,9 +22,9 @@ else
 $(error unknown mode $(RELEASE).)
 endif
 
-.PHONY: all clean
+.PHONY: all clean res
 
-all: bin/linux/$(EXE) bin/windows/$(EXE).exe
+all: bin/linux/$(EXE) bin/windows/$(EXE).exe res
 
 bin/linux/$(EXE): $(OBJS_LINUX)
 	@echo linking object files into elf...

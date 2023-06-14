@@ -18,6 +18,7 @@ struct glfw {
   void *(*set_window_pos)(void *, i32, i32);
   void  (*swap_interval)(i32);
 	void *(*get_proc_address)(const i8 *);
+  i32   (*get_key)(void *, i32);
 };
 
 i8          *resource_path(const i8 *dir, const i8 *name);

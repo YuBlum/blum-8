@@ -1,5 +1,5 @@
 #include <os.h>
-#include <crt.h>
+#include <renderer.h>
 #include <GL/gl.h>
 #include <errno.h>
 #include <stdio.h>
@@ -42,6 +42,21 @@ static struct {
   void (*tex_image_2d)(u32, i32, i32, i32, i32, i32, u32, u32, const void *);
   void (*delete_textures)(i32, u32 *);
 } gl;
+
+#pragma pack(1)
+struct tga_header {
+  u8  id_length;
+  u8  color_map_type;
+  u8  image_type;
+  u16 color_map_first;
+  u16 color_map_size;
+  u8  color_map_depth;
+  u16 x, y;
+  u16 w, h;
+  u8  bpp;
+  u8  image_descriptor;
+};
+#pragma pack(0)
 
 static u32 shader_program;
 
@@ -90,8 +105,29 @@ opengl_load(const struct glfw *glfw) {
 	gl.delete_textures            = glfw->get_proc_address("glDeleteTextures");
 }
 
+static void * 
+atlas_load(void) {
+  i8 *atlas_path = resource_path("data", "atlas.tga");
+  FILE *atlas_file = fopen(atlas_path, "rb");
+  if (!atlas_file) {
+    fprintf(stderr, "error: couldn't open '%s': %s\n", atlas_path, strerror(errno));
+    return NULL;
+  }
+  struct tga_header header = { 0 };
+  fread(&header, 1, sizeof (struct tga_header), atlas_file);
+  if (header.color_map_type != 0 || header.image_type != 2 || header.bpp != 32) {
+    fprintf(stderr, "error: atlas is not a valid TGA file\n");
+    fclose(atlas_file);
+    return NULL;
+  }
+  fseek(atlas_file, header.id_length, SEEK_CUR);
+  u8 *atlas_data = malloc(32 * header.w * header.h);
+  fclose(atlas_file);
+  return atlas_data;
+}
+
 b8
-crt_begin(const struct glfw *glfw) {
+renderer_begin(const struct glfw *glfw) {
   opengl_load(glfw);
 	/* creating shader program */
 	i32 success;
@@ -142,6 +178,10 @@ crt_begin(const struct glfw *glfw) {
 	gl.tex_parameter_i(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	gl.tex_parameter_i(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	gl.tex_image_2d(GL_TEXTURE_2D, 0, GL_RGBA, GAME_SIZE, GAME_SIZE, 0, GL_BGRA, GL_UNSIGNED_BYTE, screen_buffer);
+  /* tga */
+  u8 *atlas_data = atlas_load();
+  if (!atlas_data) return 0;
+  free(atlas_data);
   return 1;
 }
 
@@ -184,13 +224,13 @@ crt_display_pixel(u32 rgb, u32 x, u32 y) {
 }
 
 void
-crt_update(void) {
+renderer_update(void) {
 	gl.tex_sub_image_2d(GL_TEXTURE_2D, 0, 0, 0, GAME_SIZE, GAME_SIZE, GL_BGRA, GL_UNSIGNED_BYTE, screen_buffer);
 	gl.draw_elements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 }
 
 void
-crt_end(void) {
+renderer_end(void) {
 	gl.delete_program(shader_program);
 	gl.delete_vertex_arrays(1, &vertex_array);
 	gl.delete_buffers(1, &vertex_buffer);

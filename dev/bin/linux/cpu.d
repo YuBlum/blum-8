@@ -1,2 +1,3 @@
-bin/linux/cpu.o: src/cpu.c include/os.h include/types.h include/cpu.h \
- include/bus.h include/crt.h
+bin/linux/cpu.o: src/cpu.c /usr/include/GLFW/glfw3.h include/window.h \
+ include/types.h include/os.h include/cpu.h include/bus.h \
+ include/renderer.h

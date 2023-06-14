@@ -72,6 +72,7 @@ glfw_load() {
   glfw.swap_interval        = lib_load_func(glfw_lib, "glfwSwapInterval");
 	glfw.get_proc_address     = lib_load_func(glfw_lib, "glfwGetProcAddress");
 	glfw.terminate            = lib_load_func(glfw_lib, "glfwTerminate");
+  glfw.get_key              = lib_load_func(glfw_lib, "glfwGetKey");
 }
 
 void

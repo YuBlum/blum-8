@@ -1,7 +1,10 @@
+#include "glfw3.h"
+#include <window.h>
+#include <math.h>
 #include <os.h>
 #include <cpu.h>
 #include <bus.h>
-#include <crt.h>
+#include <renderer.h>
 #include <stdio.h>
 #include <assert.h>
 
@@ -20,16 +23,12 @@ static u8  s; /* stack   register */
 static u16 t; /* timer   register */
 static u16 p; /* pointer register */
 static u8  clock;
-
 static struct {
-	u8 x : 4;
-	u8 y : 4;
-} tl;
-static struct {
-	u8 x : 3;
-	u8 y : 3;
-	u8 c : 2;
-} px;
+  u8 val;
+  u8 x      : 7;
+  u8 y      : 7;
+  u8 unused : 2;
+} screen_pixel;
 
 union attributes {
 	u8 val;
@@ -437,38 +436,46 @@ cpu_tick(void) {
 			assert(0);
 			break;
 	}
+  bus_write_byte(IN_OUT,
+    window_key_get(GLFW_KEY_A) << 7 |
+    window_key_get(GLFW_KEY_D) << 6 |
+    window_key_get(GLFW_KEY_W) << 5 |
+    window_key_get(GLFW_KEY_S) << 4 |
+    window_key_get(GLFW_KEY_J) << 3 |
+    window_key_get(GLFW_KEY_K) << 2 |
+    window_key_get(GLFW_KEY_U) << 1 |
+    window_key_get(GLFW_KEY_I) << 0
+  , 0);
 }
 
 static b8
 sprite_render(b8 below) {
-  u8 screen_pixel_x = tl.x * 8 + px.x;
-  u8 screen_pixel_y = tl.y * 8 + px.y;
   b8 result = 0;
   for (i32 i = 63; i >= 0; i--) {
     union attributes attr = { bus_read_byte(SPR_ATTR + i * 4 + 3) };
     if (!attr.enabled || (below && !attr.below) || (!below && attr.below)) continue;
     u8 pos_x = bus_read_byte(SPR_ATTR + i * 4 + 0);
     u8 pos_y = bus_read_byte(SPR_ATTR + i * 4 + 1);
-    if ((screen_pixel_x < pos_x || screen_pixel_x >= pos_x + 8)
-     || (screen_pixel_y < pos_y || screen_pixel_y >= pos_y + 8)) continue;
+    if ((screen_pixel.x < pos_x || screen_pixel.x >= pos_x + 8)
+     || (screen_pixel.y < pos_y || screen_pixel.y >= pos_y + 8)) continue;
     u16 tile = bus_read_word(SPR_TILES) + bus_read_byte(SPR_ATTR + i * 4 + 2) * 16;
-    u8 pixel_x = screen_pixel_x - pos_x;
-    u8 pixel_y = screen_pixel_y - pos_y;
+    u8 pixel_x = (screen_pixel.x - pos_x);
+    u8 pixel_y = (screen_pixel.y - pos_y);
+    if (attr.flip_x) pixel_x = 7 - pixel_x;
+    if (attr.flip_y) pixel_y = 7 - pixel_y;
     if (attr.rot90) {
-      pixel_x = attr.flip_x ? 7 - pixel_y : pixel_y;
-      pixel_y = attr.flip_y ? 7 - pixel_x : pixel_x;
-    } else {
-      pixel_x = attr.flip_x ? 7 - pixel_x : pixel_x;
-      pixel_y = attr.flip_y ? 7 - pixel_y : pixel_y;
+      pixel_x ^= pixel_y;
+      pixel_y ^= pixel_x;
+      pixel_x ^= pixel_y;
     }
     u8 pixel = (bus_read_byte(tile + pixel_y * 2 + (pixel_x > 3)) >> ((3 - (pixel_x % 4)) * 2)) & 0b11;
     if (attr.not_transparent || pixel != 0) {
       u8 color = (bus_read_byte(bus_read_word(SPR_PALS) + (attr.palette * 2) + (pixel > 1)) >> ((1 - (pixel % 2)) * 4)) & 0b1111;
-      crt_display_pixel(colors[color], screen_pixel_x, screen_pixel_y);
+      crt_display_pixel(colors[color], screen_pixel.x, screen_pixel.y);
       result = 1;
     } else if (below) {
       u8 color = (bus_read_byte(bus_read_word(BG_PALS)) >> 4) & 0b1111;
-      crt_display_pixel(colors[color], screen_pixel_x, screen_pixel_y);
+      crt_display_pixel(colors[color], screen_pixel.x, screen_pixel.y);
     }
   }
   return result;
@@ -478,34 +485,38 @@ void
 cpu_rsu_tick(void) {
 	/* Screen Rendering Unit (SRU) */
   /* background tiles */
+  i8 scroll_x = bus_read_byte(SCROLL_X);
+  i8 scroll_y = bus_read_byte(SCROLL_Y);
   b8 have_pixel = sprite_render(1);
-  union attributes attr = { bus_read_byte(BG_ATTR  + (tl.y * 16 + tl.x)) };
-  u16 tile  = bus_read_word(BG_TILES) + (bus_read_byte(SCREEN00 + (tl.y * 16 + tl.x)) * 16);
-  u8 pixel_x = px.x, pixel_y = px.y;
+  u8 tile_x = (u8)(screen_pixel.x + scroll_x) / 8;
+  u8 tile_y = (u8)(screen_pixel.y + scroll_y) / 8;
+  union attributes attr = { bus_read_byte(BG_ATTR  + ((tile_y % 16) * 16 + (tile_x % 16))) };
+  u16 screen = SCREEN00 + ((tile_y > 15) * 0x200 + (tile_x > 15) * 0x100);
+  u16 tile  = bus_read_word(BG_TILES) + (bus_read_byte(screen + ((tile_y % 16) * 16 + (tile_x % 16))) * 16);
+  // 0 7 
+  // 32 bytes -> 8 bytes
+  u8 pixel_x = (u8)(screen_pixel.x + scroll_x) % 8;
+  u8 pixel_y = (u8)(screen_pixel.y + scroll_y) % 8;
+  if (attr.flip_x) pixel_x = 7 - pixel_x;
+  if (attr.flip_y) pixel_y = 7 - pixel_y;
   if (attr.rot90) {
-    pixel_x = attr.flip_x ? 7 - px.y : px.y;
-    pixel_y = attr.flip_y ? 7 - px.x : px.x;
-  } else {
-    pixel_x = attr.flip_x ? 7 - px.x : px.x;
-    pixel_y = attr.flip_y ? 7 - px.y : px.y;
+    pixel_x ^= pixel_y;
+    pixel_y ^= pixel_x;
+    pixel_x ^= pixel_y;
   }
   u8  pixel = (bus_read_byte(tile + pixel_y * 2 + (pixel_x > 3)) >> ((3 - (pixel_x % 4)) * 2)) & 0b11;
   if (attr.not_transparent || pixel != 0) {
     u8 color = (bus_read_byte(bus_read_word(BG_PALS) + (attr.palette * 2) + (pixel > 1)) >> ((1 - (pixel % 2)) * 4)) & 0b1111;
-    crt_display_pixel(colors[color], tl.x * 8 + px.x, tl.y * 8 + px.y);
+    crt_display_pixel(colors[color], screen_pixel.x, screen_pixel.y);
   } else if (!have_pixel) {
     u8 color = (bus_read_byte(bus_read_word(BG_PALS)) >> 4) & 0b1111;
-    crt_display_pixel(colors[color], tl.x * 8 + px.x, tl.y * 8 + px.y);
+    crt_display_pixel(colors[color], screen_pixel.x, screen_pixel.y);
   }
   sprite_render(0);
   /* go to next pixel */
-  px.x++;
-  if (px.x == 0) {
-    px.y++;
-    if (px.y == 0) {
-      tl.x++;
-      if (tl.x == 0) tl.y++;
-    }
+  screen_pixel.x++;
+  if (screen_pixel.x == 0) {
+    screen_pixel.y++;
   }
 }
 
