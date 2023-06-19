@@ -41,6 +41,8 @@ static struct {
   void (*tex_sub_image_2d)(u32, i32, i32, i32, i32, i32, u32, u32, const void *);
   void (*tex_image_2d)(u32, i32, i32, i32, i32, i32, u32, u32, const void *);
   void (*delete_textures)(i32, u32 *);
+  void (*program_uniform_2f)(u32, i32, f32, f32);
+  i32  (*get_uniform_location)(u32, const i8 *);
 } gl;
 
 #pragma pack(1)
@@ -103,6 +105,8 @@ opengl_load(const struct glfw *glfw) {
   gl.tex_image_2d               = glfw->get_proc_address("glTexImage2D");
   gl.tex_sub_image_2d           = glfw->get_proc_address("glTexSubImage2D");
   gl.delete_textures            = glfw->get_proc_address("glDeleteTextures");
+  gl.program_uniform_2f         = glfw->get_proc_address("glProgramUniform2f");
+  gl.get_uniform_location       = glfw->get_proc_address("glGetUniformLocation");
 }
 
 static void * 
@@ -150,6 +154,7 @@ renderer_begin(const struct glfw *glfw) {
     return 0;
   }
   gl.use_program(shader_program);
+  gl.program_uniform_2f(shader_program, gl.get_uniform_location(shader_program, "resolution"), GAME_SIZE * WINDOW_SCALE, GAME_SIZE *WINDOW_SCALE);
   /* square */
   f32 vertices[] = {
    -1, -1,  0, 1,
