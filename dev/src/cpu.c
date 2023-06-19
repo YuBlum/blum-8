@@ -61,6 +61,7 @@ union byte {
 struct instruction {
   enum opcode opcode;
   enum addrmd addrmd;
+  b8 valid;
 };
 
 static i8 *opcode_name[] = {
@@ -73,12 +74,10 @@ static i8 *opcode_name[] = {
   "jpn", "jnn", "jpc", "jnc", "cmp", "cpx", "cpy"
 };
 
-/*
 static i8 *addrmd_name[] = {
   "noa", "cst", "zpg", "zpx",
   "zpy", "adr", "adx", "ady"
 };
-*/
 
 static struct instruction inst[0x100];
 
@@ -90,7 +89,6 @@ static struct instruction inst[0x100];
 
 void
 cpu_startup(void) {
-  p = ROM_BEGIN;
   s = 0xff;
   b8 carry = 0;
   for (union byte i = { 0 }; i.b || !carry; carry = (u8)(++i.b) == 0) {
@@ -138,6 +136,14 @@ cpu_startup(void) {
         inst[i.b].opcode = (i.b - 0xd0 + SHR) % OPCODE_COUNT;
         break;
     }
+    inst[i.b].valid = i.b != 0x1f && (i.b <= 0x2a || i.b >= 0x30)
+                                  && (i.b <= 0x43 || i.b >= 0x50)
+                                  && (i.b <= 0x63 || i.b >= 0x70)
+                                  && (i.b <= 0x83 || i.b >= 0x90)
+                                  && (i.b <= 0xa3 || i.b >= 0xb0)
+                                  && (i.b <= 0xc3 || i.b >= 0xd0)
+                                  && (i.b <= 0xc3 || i.b >= 0xd0)
+                                  && i.b <= 0xf1;
     /*printf("%.2x %s %s\n", i.b, opcode_name[inst[i.b].opcode], addrmd_name[inst[i.b].addrmd]);*/
   }
 }
@@ -146,8 +152,8 @@ void
 cpu_print_registers(void) {
   printf("x: %.2x, y: %.2x, z: %.2x\n", x, y, z);
   printf("Flags:\n");
-  printf("\tCarry: %u, Zero: %u, Less: %u, Negative: %u, Overflow: %u\n",
-    FLAG_GET(C), FLAG_GET(Z), FLAG_GET(L), FLAG_GET(N), FLAG_GET(V));
+  printf("\tCarry: %u, Zero: %u, Less: %u, Negative: %u, Overflow: %u, Delay: %u\n",
+    FLAG_GET(C), FLAG_GET(Z), FLAG_GET(L), FLAG_GET(N), FLAG_GET(V), FLAG_GET(D));
   printf("Addresses:\n");
   printf("\tStack: %.2x, Pointer: %.4x\n", s, p);
   u8 idx = bus_read_byte(p);
@@ -162,15 +168,65 @@ cpu_print_registers(void) {
     case ADX: printf("&%.4x\n", bus_read_word(p+1)+x); break;
     case ADY: printf("&%.4x\n", bus_read_word(p+1)+y); break;
   }
-  printf("Stack[0]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xff));
-  printf("Stack[1]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xfe));
-  printf("Stack[2]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xfd));
-  printf("Stack[3]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xfc));
-  printf("Stack[4]: %.2x\n", bus_read_byte(STACK_BEGIN + 0xfb));
+  printf("Stack[0]: %.2x\n", bus_read_byte(STACK_END + 0xff));
+  printf("Stack[1]: %.2x\n", bus_read_byte(STACK_END + 0xfe));
+  printf("Stack[2]: %.2x\n", bus_read_byte(STACK_END + 0xfd));
+  printf("Stack[3]: %.2x\n", bus_read_byte(STACK_END + 0xfc));
+  printf("Stack[4]: %.2x\n", bus_read_byte(STACK_END + 0xfb));
+}
+
+void
+cpu_disassemble(void) {
+  return;
+  static b8 test = 0;
+  test = test || p >= 0x1a59;
+  if (!test) return;
+	u8 idx = bus_read_byte(p);
+  printf("clock: %u\n", clock);
+	printf("[%.4x] %s", p, opcode_name[inst[idx].opcode]);
+	switch (inst[idx].addrmd) {
+		case NOA:                                                break;
+		case CST: printf(" 0x%.2x",       bus_read_byte(p + 1)); break;
+		case ZPG: printf(" [0x%.2x]",     bus_read_byte(p + 1)); break;
+		case ZPX: printf(" [0x%.2x + x]", bus_read_byte(p + 1)); break;
+		case ZPY: printf(" [0x%.2x + y]", bus_read_byte(p + 1)); break;
+		case ADR: printf(" [0x%.4x]",     bus_read_word(p + 1)); break;
+		case ADX: printf(" [0x%.4x + x]", bus_read_word(p + 1)); break;
+		case ADY: printf(" [0x%.4x + y]", bus_read_word(p + 1)); break;
+		default:  printf(" ????");                               break;
+	}
+	putchar('\n');
+  getchar();
+}
+
+void
+cpu_start_interrupt(void) {
+  p = bus_read_word(START_VEC);
+}
+
+void
+cpu_frame_interrupt(void) {
+  bus_write_byte(STACK_END + s--, p >> 8, 1);
+  bus_write_byte(STACK_END + s--, p & 0x00ff, 1);
+  bus_write_byte(STACK_END + s--, f, 1);
+  bus_write_byte(STACK_END + s--, x, 1);
+  bus_write_byte(STACK_END + s--, y, 1);
+  p = bus_read_word(FRAME_VEC);
+  f = 0;
 }
 
 void
 cpu_tick(void) {
+  bus_write_byte(IN_OUT,
+    window_key_get(GLFW_KEY_A) << 7 |
+    window_key_get(GLFW_KEY_D) << 6 |
+    window_key_get(GLFW_KEY_W) << 5 |
+    window_key_get(GLFW_KEY_S) << 4 |
+    window_key_get(GLFW_KEY_J) << 3 |
+    window_key_get(GLFW_KEY_K) << 2 |
+    window_key_get(GLFW_KEY_U) << 1 |
+    window_key_get(GLFW_KEY_I) << 0
+  , 1);
   if (clock > 0) {
     clock--;
     return;
@@ -178,7 +234,7 @@ cpu_tick(void) {
   /*
   cpu_print_registers();
   cpu_disassemble();
-    */
+  */
   u16 addr = 0;
   b8  usez = 0;
   u16 word;
@@ -235,25 +291,27 @@ cpu_tick(void) {
       FLAG_SET(N, 0);
       break;
     case PSH:
-      bus_write_byte(STACK_BEGIN + s--, z, 1);
+      bus_write_byte(STACK_END + s--, z, 1);
       break;
     case POP:
-      z = bus_read_byte(STACK_BEGIN + ++s);
+      z = bus_read_byte(STACK_END + ++s);
       FLAG_SET(Z, !z);
       FLAG_SET(N, z & 0x80);
       clock++;
       break;
-    case PSF: bus_write_byte(STACK_BEGIN + s--, f, 1); clock += 1; break;
-    case POF: f = bus_read_byte(STACK_BEGIN + ++f); clock += 2; break;
+    case PSF: bus_write_byte(STACK_END + s--, f, 1); clock += 1; break;
+    case POF: f = bus_read_byte(STACK_END + ++f); clock += 2; break;
     case RET:
-      p  = bus_read_byte(STACK_BEGIN + ++s)  & 0x00ff;
-      p |= bus_read_byte(STACK_BEGIN + ++s) << 8;
+      p  = bus_read_byte(STACK_END + ++s)  & 0x00ff;
+      p |= bus_read_byte(STACK_END + ++s) << 8;
       clock += 3;
       break;
     case EXT:
-      f  = bus_read_byte(STACK_BEGIN + ++s);
-      p  = bus_read_byte(STACK_BEGIN + ++s)  & 0x00ff;
-      p |= bus_read_byte(STACK_BEGIN + ++s) << 8;
+      y  = bus_read_byte(STACK_END + ++s);
+      x  = bus_read_byte(STACK_END + ++s);
+      f  = bus_read_byte(STACK_END + ++s);
+      p  = bus_read_byte(STACK_END + ++s)  & 0x00ff;
+      p |= bus_read_byte(STACK_END + ++s) << 8;
       clock += 3;
       break;
     case DLY:
@@ -399,8 +457,8 @@ cpu_tick(void) {
       bus_write_byte(addr, y, 1);
       break;
     case JTS:
-      bus_write_byte(STACK_BEGIN + s--, p >> 8, 1);
-      bus_write_byte(STACK_BEGIN + s--, p & 0xff, 1);
+      bus_write_byte(STACK_END + s--, p >> 8, 1);
+      bus_write_byte(STACK_END + s--, p & 0xff, 1);
       p = addr;
       clock += 3;
       break;
@@ -436,16 +494,6 @@ cpu_tick(void) {
       assert(0);
       break;
   }
-  bus_write_byte(IN_OUT,
-    window_key_get(GLFW_KEY_A) << 7 |
-    window_key_get(GLFW_KEY_D) << 6 |
-    window_key_get(GLFW_KEY_W) << 5 |
-    window_key_get(GLFW_KEY_S) << 4 |
-    window_key_get(GLFW_KEY_J) << 3 |
-    window_key_get(GLFW_KEY_K) << 2 |
-    window_key_get(GLFW_KEY_U) << 1 |
-    window_key_get(GLFW_KEY_I) << 0
-  , 0);
 }
 
 static b8
@@ -454,8 +502,8 @@ sprite_render(b8 below) {
   for (i32 i = 63; i >= 0; i--) {
     union attributes attr = { bus_read_byte(SPR_ATTR + i * 4 + 3) };
     if (!attr.enabled || (below && !attr.below) || (!below && attr.below)) continue;
-    u8 pos_x = bus_read_byte(SPR_ATTR + i * 4 + 0);
-    u8 pos_y = bus_read_byte(SPR_ATTR + i * 4 + 1);
+    i8 pos_x = bus_read_byte(SPR_ATTR + i * 4 + 0);
+    i8 pos_y = bus_read_byte(SPR_ATTR + i * 4 + 1);
     if ((screen_pixel.x < pos_x || screen_pixel.x >= pos_x + 8)
      || (screen_pixel.y < pos_y || screen_pixel.y >= pos_y + 8)) continue;
     u16 tile = bus_read_word(SPR_TILES) + bus_read_byte(SPR_ATTR + i * 4 + 2) * 16;
@@ -537,9 +585,15 @@ cpu_opcode_str(enum opcode opcode) {
   return opcode_name[opcode];
 }
 
+i8 *
+cpu_addrmd_str(enum addrmd addrmd) {
+  return addrmd_name[addrmd];
+}
+
 u8
 cpu_instruction_get(enum opcode opcode, enum addrmd addrmd) {
   for (u32 i = 0; i < 0x100; i++) {
+    if (!inst[i].valid) continue;
     if (inst[i].opcode == opcode && inst[i].addrmd == addrmd) return i;
   }
   return -1;

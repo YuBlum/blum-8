@@ -13,11 +13,11 @@ DEPS_WINDOWS=$(patsubst src/%.c, bin/windows/%.d, $(CFILES))
 MODE=DEVELOPMENT
 
 ifeq ($(MODE), DEVELOPMENT)
-  FLAGS_LINUX += -Wall -Wextra -Werror -g
-  FLAGS_WINDOWS += -Wall -Wextra -Werror -g
+	FLAGS_LINUX += -Wall -Wextra -Werror -g
+	FLAGS_WINDOWS += -Wall -Wextra -Werror -g
 else ifeq ($(MODE), RELEASE)
-  FLAGS_LINUX += -Ofast
-  FLAGS_WINDOWS += -Ofast
+	FLAGS_LINUX += -Ofast
+	FLAGS_WINDOWS += -Ofast
 else
 $(error unknown mode $(RELEASE).)
 endif
@@ -27,53 +27,53 @@ endif
 all: bin/linux/$(EXE) bin/windows/$(EXE).exe res
 
 bin/linux/$(EXE): $(OBJS_LINUX)
-  @echo linking object files into elf...
-  @$(CC_LINUX) $(FLAGS_LINUX) -o bin/linux/$(EXE) $^ $(LIBS_LINUX)
-  @echo updating linux resources...
-  @cp data/* ../linux/data/
-  @cp shaders/* ../linux/shaders/
-  @cp libs/linux/* ../linux/libs/
-  @cp bin/linux/$(EXE) ../linux/
-  @echo $(EXE) was succesfully builded for linux!
+	@echo linking object files into elf...
+	@$(CC_LINUX) $(FLAGS_LINUX) -o bin/linux/$(EXE) $^ $(LIBS_LINUX)
+	@echo updating linux resources...
+	@cp data/* ../linux/data/
+	@cp shaders/* ../linux/shaders/
+	@cp libs/linux/* ../linux/libs/
+	@cp bin/linux/$(EXE) ../linux/
+	@echo $(EXE) was succesfully builded for linux!
 
 bin/windows/$(EXE).exe: $(OBJS_WINDOWS)
-  @echo linking object files into exe...
-  @$(CC_WINDOWS) $(FLAGS_WINDOWS) -o bin/windows/$(EXE) $^ $(LIBS_WINDOWS)
-  @echo updating windows resources...
-  @cp data/* ../windows/data/
-  @cp shaders/* ../windows/shaders/
-  @cp libs/windows/* ../windows/libs/
-  @cp bin/windows/$(EXE).exe ../windows/
-  @echo $(EXE) was succesfully builded for windows!
+	@echo linking object files into exe...
+	@$(CC_WINDOWS) $(FLAGS_WINDOWS) -o bin/windows/$(EXE) $^ $(LIBS_WINDOWS)
+	@echo updating windows resources...
+	@cp data/* ../windows/data/
+	@cp shaders/* ../windows/shaders/
+	@cp libs/windows/* ../windows/libs/
+	@cp bin/windows/$(EXE).exe ../windows/
+	@echo $(EXE) was succesfully builded for windows!
 
 res:
-  @cp data/* ../windows/data/
-  @cp shaders/* ../windows/shaders/
-  @cp libs/windows/* ../windows/libs/
-  @cp data/* ../linux/data/
-  @cp shaders/* ../linux/shaders/
-  @cp libs/linux/* ../linux/libs/
-  @echo resources updated
+	@cp data/* ../windows/data/
+	@cp shaders/* ../windows/shaders/
+	@cp libs/windows/* ../windows/libs/
+	@cp data/* ../linux/data/
+	@cp shaders/* ../linux/shaders/
+	@cp libs/linux/* ../linux/libs/
+	@echo resources updated
 
 
 -include $(DEPS_WINDOWS)
 -include $(DEPS_LINUX)
 
 bin/linux/%.o: src/%.c
-  @echo compiling $< with gcc...
-  @$(CC_LINUX) $(FLAGS_LINUX) -MMD -c -DLINUX $< -o $@
+	@echo compiling $< with gcc...
+	@$(CC_LINUX) $(FLAGS_LINUX) -MMD -c -DLINUX $< -o $@
 
 bin/windows/%.o: src/%.c
-  @echo compiling $< with mingw...
-  @$(CC_WINDOWS) $(FLAGS_WINDOWS) -MMD -c -DWINDOWS $< -o $@
+	@echo compiling $< with mingw...
+	@$(CC_WINDOWS) $(FLAGS_WINDOWS) -MMD -c -DWINDOWS $< -o $@
 
 run:
-  ../linux/$(EXE)
+	../linux/$(EXE)
 
 clean:
-  @rm bin/linux/*
-  @rm bin/windows/*
-  @echo cleaned up binaries!
-  @rm ../windows/$(EXE).exe  ../windows/shaders/* ../windows/libs/* ../windows/data/* ../linux/$(EXE) ../linux/shaders/* ../linux/libs/* ../linux/data/*
-  @echo cleaned up build!
+	@rm bin/linux/*
+	@rm bin/windows/*
+	@echo cleaned up binaries!
+	@rm ../windows/$(EXE).exe  ../windows/shaders/* ../windows/libs/* ../windows/data/* ../linux/$(EXE) ../linux/shaders/* ../linux/libs/* ../linux/data/*
+	@echo cleaned up build!
 

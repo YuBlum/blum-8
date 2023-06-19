@@ -27,9 +27,12 @@ struct cpuarg {
 void cpu_print_registers(void);
 void cpu_disassemble(void);
 void cpu_startup(void);
+void cpu_start_interrupt(void);
+void cpu_frame_interrupt(void);
 void cpu_tick(void);
 void cpu_rsu_tick(void);
 i8  *cpu_opcode_str(enum opcode opcode);
+i8  *cpu_addrmd_str(enum addrmd addrmd);
 i32  cpu_opcode_get(const i8 *str, u32 str_size);
 u8   cpu_instruction_get(enum opcode opcode, enum addrmd addrmd);
 

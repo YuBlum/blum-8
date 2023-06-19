@@ -1,4 +1,5 @@
 #include "types.h"
+#include <math.h>
 #include <os.h>
 #include <cpu.h>
 #include <bus.h>
@@ -15,6 +16,7 @@
 #define MAX(V1, V2) (V1 > V2 ? V1 : V2)
 
 enum {
+  TKN_NIL,
   TKN_CST, /* constant */
   TKN_ADR, /* address */
   TKN_ADS, /* address sufix */
@@ -25,8 +27,8 @@ enum {
   TKN_MLB, /* most significant byte of label */
   TKN_LLB, /* least significant byte of label */
   TKN_STR, /* string */
-  TKN_PLS, /* plus */
-  TKN_MNS, /* minus */
+  TKN_ORG, /* origin */
+  TKN_EXP, /* expression */
 };
 
 enum lbltyp {
@@ -40,6 +42,32 @@ enum keyword {
   KW_WORD,
   KW_STRDEF,
   KW_STR,
+};
+
+enum {
+  EXP_PLS,
+  EXP_MNS,
+  EXP_MUL,
+  EXP_CST,
+  EXP_ADR,
+  EXP_COUNT
+};
+
+struct expression {
+  u32 type;
+  u32 priority;
+  u16 num;
+  u32 line;
+  u32 col;
+  u8  symbol;
+  struct expression *lhs;
+  struct expression *rhs;
+  struct expression *prv;
+};
+
+struct exp_constant {
+  u16 num;
+  u32 type;
 };
 
 struct constant {
@@ -64,9 +92,11 @@ struct token {
   u32 type;
   enum addrmd addrmd;
   struct split string;
+  struct expression *expression;
   union {
     enum opcode opcode;
     enum lbltyp lbltyp;
+    b8 has_number;
   };
   union {
     u8  byte;
@@ -89,28 +119,41 @@ struct label {
 };
 
 static struct constant predefined_constants[] = {
-  { .name = "spr_attr",  .name_siz = 8, .is_word = 1, .word = SPR_ATTR  },
-  { .name = "screen00",  .name_siz = 8, .is_word = 1, .word = SCREEN00  },
-  { .name = "screen01",  .name_siz = 8, .is_word = 1, .word = SCREEN01  },
-  { .name = "screen10",  .name_siz = 8, .is_word = 1, .word = SCREEN10  },
-  { .name = "screen11",  .name_siz = 8, .is_word = 1, .word = SCREEN11  },
-  { .name = "bg_attr",   .name_siz = 7, .is_word = 1, .word = BG_ATTR   },
-  { .name = "in_out",    .name_siz = 6, .is_word = 1, .word = IN_OUT    },
-  { .name = "bg_tiles",  .name_siz = 8, .is_word = 1, .word = BG_TILES  },
-  { .name = "spr_tiles", .name_siz = 9, .is_word = 1, .word = SPR_TILES },
-  { .name = "bg_pals",   .name_siz = 7, .is_word = 1, .word = BG_PALS   },
-  { .name = "spr_pals",  .name_siz = 8, .is_word = 1, .word = SPR_PALS  },
-  { .name = "scroll_x",  .name_siz = 8, .is_word = 1, .word = SCROLL_X  },
-  { .name = "scroll_y",  .name_siz = 8, .is_word = 1, .word = SCROLL_Y  },
+  { .name = "zero_page", .name_siz =  9, .is_word = 1, .word = ZERO_PAGE },
+  { .name = "stack_end", .name_siz = 11, .is_word = 1, .word = STACK_END },
+  { .name = "spr_attr",  .name_siz =  8, .is_word = 1, .word = SPR_ATTR  },
+  { .name = "screen00",  .name_siz =  8, .is_word = 1, .word = SCREEN00  },
+  { .name = "screen01",  .name_siz =  8, .is_word = 1, .word = SCREEN01  },
+  { .name = "screen10",  .name_siz =  8, .is_word = 1, .word = SCREEN10  },
+  { .name = "screen11",  .name_siz =  8, .is_word = 1, .word = SCREEN11  },
+  { .name = "bg_attr",   .name_siz =  7, .is_word = 1, .word = BG_ATTR   },
+  { .name = "in_out",    .name_siz =  6, .is_word = 1, .word = IN_OUT    },
+  { .name = "bg_tiles",  .name_siz =  8, .is_word = 1, .word = BG_TILES  },
+  { .name = "spr_tiles", .name_siz =  9, .is_word = 1, .word = SPR_TILES },
+  { .name = "bg_pals",   .name_siz =  7, .is_word = 1, .word = BG_PALS   },
+  { .name = "spr_pals",  .name_siz =  8, .is_word = 1, .word = SPR_PALS  },
+  { .name = "scroll_x",  .name_siz =  8, .is_word = 1, .word = SCROLL_X  },
+  { .name = "scroll_y",  .name_siz =  8, .is_word = 1, .word = SCROLL_Y  },
+  { .name = "rom_begin", .name_siz =  9, .is_word = 1, .word = ROM_BEGIN },
+  { .name = "vectors",   .name_siz =  7, .is_word = 1, .word = VECTORS   },
 };
 static u32 predefined_constants_amount = sizeof (predefined_constants) / sizeof (struct constant);
+
+static u32 expressions_priorities[EXP_COUNT] = {
+  [EXP_CST] = 0,
+  [EXP_ADR] = 0,
+  [EXP_MNS] = 1,
+  [EXP_PLS] = 1,
+  [EXP_MUL] = 2,
+};
 
 static struct split *splits;
 static struct token *tokens;
 static struct label *labels;
 static i8           *file_name;
 static const i8      separators[] = " \t\n";
-static const i8      operators[]  = ":&$%@.,<>+-";
+static const i8      operators[]  = ":&$%@.,<>+-*";
+
 static i32
 get_label(struct label *labels, struct split string) {
   for (u32 i = 0; i < arraylist_size(labels); i++) {
@@ -299,6 +342,7 @@ gen_structs(void) {
 
 static b8
 lex_number(u32 *index, u32 *code_ptr, u32 base, i8 prefix, b8 address) {
+  u32 tokens_size = arraylist_size(tokens);
   i8 *invalid_char;
   if (*index + 1 > arraylist_size(splits) - 1) {
     fprintf(stderr, "error: %s : %u,%u: '%c' prefix without a %s\n",
@@ -309,13 +353,14 @@ lex_number(u32 *index, u32 *code_ptr, u32 base, i8 prefix, b8 address) {
   u32 num = strtoul(splits[*index].buf, &invalid_char, base);
   if (splits[*index].siz == 1 && splits[*index].buf[0] == '.' && address) {
     *code_ptr += 2;
-    tokens = arraylist_push(tokens, &(struct token) { TKN_CAD, .addrmd = ADR });
+    tokens = arraylist_push(tokens, &(struct token) { TKN_CAD, .addrmd = ADR, .string = splits[*index] });
     return 1;
   } else if (splits[*index].buf + splits[*index].siz != invalid_char) {
     fprintf(stderr, "error: %s : %u,%u: '%c%.*s' is not a valid %s\n",
     file_name, splits[*index].line, splits[*index].col, prefix, splits[*index].siz, splits[*index].buf, address ? "address" : "constant");
     return 0;
   }
+  u32 old_code_ptr = *code_ptr;
   (*code_ptr)++;
   if (address) {
     if (num > 0xffff) {
@@ -328,14 +373,115 @@ lex_number(u32 *index, u32 *code_ptr, u32 base, i8 prefix, b8 address) {
       addrmd = ADR;
       (*code_ptr)++;
     }
-    tokens = arraylist_push(tokens, &(struct token) { TKN_ADR, .word = num, .addrmd = addrmd });
+    if (tokens_size > 0 && tokens[tokens_size - 1].type == TKN_ORG && !tokens[tokens_size - 1].has_number) {
+      /*
+      if (num < ROM_BEGIN) {
+        fprintf(stderr, "error: %s : %u,%u: '@org' expects an address in the ROM area (&%.4x to &ffff)\n",
+        file_name, splits[*index].line, splits[*index].col, ROM_BEGIN);
+        return 0;
+      }
+      */
+      tokens[tokens_size - 1].has_number = 1;
+      tokens[tokens_size - 1].word = num;
+      *code_ptr = num;
+    } else if (tokens_size > 0 && tokens[tokens_size - 1].type == TKN_EXP) {
+      struct expression *prv = tokens[tokens_size - 1].expression;
+      while (prv->rhs) prv   = prv->rhs;
+      prv->rhs               = malloc(sizeof (struct expression));
+      prv->rhs->type         = EXP_ADR;
+      prv->rhs->lhs          = NULL;
+      prv->rhs->rhs          = NULL;
+      prv->rhs->num          = num;
+      prv->rhs->prv          = prv;
+      prv->rhs->priority     = expressions_priorities[EXP_ADR];
+      *code_ptr = old_code_ptr;
+    } else {
+      tokens = arraylist_push(tokens, &(struct token) { TKN_ADR, .word = num, .addrmd = addrmd, .string = splits[*index] });
+    }
   } else {
     if (num > 0xff) {
       fprintf(stderr, "error: %s : %u,%u: constant '%c%.*s' is greater than 1 byte long\n",
       file_name, splits[*index].line, splits[*index].col, prefix, splits[*index].siz, splits[*index].buf);
       return 0;
     }
-    tokens = arraylist_push(tokens, &(struct token) { TKN_CST, .byte = num, .addrmd = CST });
+    if (tokens_size > 0 && tokens[tokens_size - 1].type == TKN_ORG && !tokens[tokens_size - 1].has_number) {
+      fprintf(stderr, "error: %s : %u,%u: '@org' expects an address but got a constant\n",
+         file_name, splits[*index].line, splits[*index].col);
+      return 0;
+    }
+    if (tokens_size > 0 && tokens[tokens_size - 1].type == TKN_EXP) {
+      struct expression *prv = tokens[tokens_size - 1].expression;
+      while (prv->rhs) prv   = prv->rhs;
+      prv->rhs               = malloc(sizeof (struct expression));
+      prv->rhs->type         = EXP_CST;
+      prv->rhs->lhs          = NULL;
+      prv->rhs->rhs          = NULL;
+      prv->rhs->num          = num;
+      prv->rhs->prv          = prv;
+      prv->rhs->priority     = expressions_priorities[EXP_CST];
+      *code_ptr = old_code_ptr;
+    } else {
+      tokens = arraylist_push(tokens, &(struct token) { TKN_CST, .word = num, .addrmd = CST, .string = splits[*index] });
+    }
+  }
+  return 1;
+}
+
+static b8
+lex_binary_operator(u8 symbol, u32 operator, struct split split) {
+  u32 tokens_size = arraylist_size(tokens);
+  if (
+    tokens_size == 0 ||
+    (
+     tokens[tokens_size - 1].type != TKN_CST &&
+     tokens[tokens_size - 1].type != TKN_ADR &&
+     tokens[tokens_size - 1].type != TKN_EXP
+   )
+  ) {
+    fprintf(stderr, "error: %s : %u,%u: missing left hand side of binary operator '%c'\n",
+       file_name, split.line, split.col, symbol);
+    return 0;
+  }
+  if (tokens[tokens_size - 1].type != TKN_EXP) {
+    tokens[tokens_size - 1].expression            = malloc(sizeof (struct expression));
+    tokens[tokens_size - 1].expression->lhs       = malloc(sizeof (struct expression));
+    tokens[tokens_size - 1].expression->lhs->lhs  = NULL;
+    tokens[tokens_size - 1].expression->lhs->rhs  = NULL;
+    tokens[tokens_size - 1].expression->lhs->type = tokens[tokens_size - 1].type == TKN_CST ? EXP_CST : EXP_ADR;
+    tokens[tokens_size - 1].expression->lhs->num  = tokens[tokens_size - 1].word;
+    tokens[tokens_size - 1].expression->priority  = expressions_priorities[operator];
+    tokens[tokens_size - 1].expression->rhs       = NULL;
+    tokens[tokens_size - 1].expression->prv       = NULL;
+    tokens[tokens_size - 1].expression->type      = operator;
+    tokens[tokens_size - 1].expression->symbol    = symbol;
+    tokens[tokens_size - 1].expression->col       = split.col;
+    tokens[tokens_size - 1].expression->line      = split.line;
+    tokens[tokens_size - 1].type                  = TKN_EXP;
+  } else {
+    struct expression *lhs = tokens[tokens_size - 1].expression;
+    struct expression *exp = malloc(sizeof (struct expression));
+    exp->type     = operator;
+    exp->symbol   = symbol;
+    exp->col      = split.col;
+    exp->line     = split.line;
+    exp->priority = expressions_priorities[operator];
+    exp->rhs      = NULL;
+    if (tokens[tokens_size - 1].expression->priority >= expressions_priorities[operator]) {
+      exp->lhs = lhs;
+      exp->prv = lhs->prv;
+      lhs->prv = exp;
+      tokens[tokens_size - 1].expression = exp;
+    } else {
+      struct expression *prv = tokens[tokens_size - 1].expression;
+      while (prv->priority < expressions_priorities[operator])  {
+        if (!prv->rhs) break;
+        prv = prv->rhs;
+      }
+      exp->prv = prv->prv;
+      prv->prv = exp;
+      exp->prv->rhs = exp;
+      exp->lhs = prv;
+    }
   }
   return 1;
 }
@@ -367,7 +513,21 @@ lex(void) {
           addrmd = ADR;
         }
       }
-      tokens = arraylist_push(tokens, &(struct token) { tkn_type, .word = predefined_constants[j].word, .addrmd = addrmd });
+      if (arraylist_size(tokens) > 0 && tokens[arraylist_size(tokens) - 1].type == TKN_ORG) {
+        /*
+        if (predefined_constants[j].word < ROM_BEGIN) {
+          fprintf(stderr, "error: %s : %u,%u: '@org' expects an address in the ROM area (&%.4x to &ffff)\n",
+          file_name, splits[i].line, splits[i].col, ROM_BEGIN);
+          return 0;
+        }
+        */
+        tokens[arraylist_size(tokens) - 1].has_number = 1;
+        tokens[arraylist_size(tokens) - 1].word = predefined_constants[j].word;
+        if (predefined_constants[j].word < ROM_BEGIN) memory_pointer = predefined_constants[j].word;
+        code_ptr = predefined_constants[j].word;
+      } else {
+        tokens = arraylist_push(tokens, &(struct token) { tkn_type, .word = predefined_constants[j].word, .addrmd = addrmd });
+      }
       predefined_constant = 1;
       break;
     }
@@ -383,20 +543,13 @@ lex(void) {
         if (!lex_number(&i, &code_ptr, 16, '&', 1)) return 0;
         break;
       case '+':
-        if (i == 0 || (tokens[i - 1].type != TKN_CST && tokens[i - 1].type != TKN_ADR)) {
-          fprintf(stderr, "error: %s : %u,%u: missing left hand side of binary operator '+'\n",
-             file_name, splits[i].line, splits[i].col);
-          return 0;
-        }
-        if (i >= arraylist_size(tokens) - 1) {
-          fprintf(stderr, "error: %s : %u,%u: missing right hand side of binary operator '+'\n",
-             file_name, splits[i].line, splits[i].col);
-          return 0;
-        }
-        tokens = arraylist_push(tokens, &(struct token) { .type = TKN_PLS });
-        assert(0 && "TODO");
+        if (!lex_binary_operator('+', EXP_PLS, splits[i])) return 0;
         break;
       case '-':
+        if (!lex_binary_operator('-', EXP_MNS, splits[i])) return 0;
+        break;
+      case '*':
+        if (!lex_binary_operator('*', EXP_MUL, splits[i])) return 0;
         break;
       case ',':
         if (i == 0 || (
@@ -476,6 +629,7 @@ lex(void) {
               for (i += 5; i < arraylist_size(splits); i += 5) {
                 if (splits[i].buf[0] != ',') break;
               }
+              i--;
               break;
             default:
               assert(0);
@@ -488,9 +642,29 @@ lex(void) {
         }
         break;
       case '@':
-        fprintf(stderr, "error: %s : %u,%u: keywords needs to be led by a label\n",
-           file_name, splits[i].line, splits[i].col);
-        return 0;
+        if (i + 1 >= arraylist_size(splits) - 1) {
+          fprintf(stderr, "error: %s : %u,%u: '@' without a keyword\n",
+             file_name, splits[i].line, splits[i].col);
+          return 0;
+        }
+        i++;
+        if ((splits[i].siz == 4 && strncmp(splits[i].buf, "byte",   4) == 0)
+         || (splits[i].siz == 4 && strncmp(splits[i].buf, "word",   4) == 0)
+         || (splits[i].siz == 3 && strncmp(splits[i].buf, "str",    3) == 0)
+         || (splits[i].siz == 6 && strncmp(splits[i].buf, "strdef", 6) == 0)) {
+          fprintf(stderr, "error: %s : %u,%u: '@%.*s' needs to be led by a label\n",
+             file_name, splits[i].line, splits[i].col, splits[i].siz, splits[i].buf);
+          return 0;
+        }
+        if (splits[i].siz != 3 || strncmp(splits[i].buf, "org", 3) != 0) {
+          fprintf(stderr, "error: %s : %u,%u: unknwon keyword '@%.*s'\n",
+             file_name, splits[i].line, splits[i].col, splits[i].siz, splits[i].buf);
+          return 0;
+        } else {
+          tokens = arraylist_push(tokens, &(struct token) {
+            TKN_ORG, .string = splits[i], .has_number = 0
+          });
+        }
         break;
       case '.':
         if (i + 1 > arraylist_size(splits) - 1) {
@@ -513,7 +687,7 @@ lex(void) {
         opcode = cpu_opcode_get(splits[i].buf, splits[i].siz);
         if (opcode != -1) {
           code_ptr++;
-          tokens = arraylist_push(tokens, &(struct token) { TKN_INS, .opcode = opcode, .addrmd = NOA});
+          tokens = arraylist_push(tokens, &(struct token) { TKN_INS, .opcode = opcode, .addrmd = NOA, .string = splits[i] });
         } else if (i >= arraylist_size(splits) - 1 || splits[i + 1].buf[0] != ':') {
           enum lbltyp lbltyp = LTP_NORMAL;
           if (i > 0 && splits[i - 1].siz == 1) {
@@ -530,6 +704,81 @@ lex(void) {
   return 1;
 }
 
+static struct exp_constant
+parse_expression(struct expression *exp) {
+  if (!exp) return (struct exp_constant) { .type = TKN_NIL };
+  struct exp_constant lhs, rhs, result;
+  lhs = parse_expression(exp->lhs);
+  rhs = parse_expression(exp->rhs);
+  switch (exp->type) {
+    case EXP_PLS:
+      result.num = lhs.num + rhs.num;
+      result.type = lhs.type == TKN_CST && rhs.type == TKN_CST ? TKN_CST : TKN_ADR;
+      if (!exp->rhs) {
+        fprintf(stderr, "error: %s : %u,%u: missing right hand side of binary operator '%c'\n",
+           file_name, exp->line, exp->col, exp->symbol);
+        return (struct exp_constant) { .type = TKN_NIL };
+      }
+      break;
+    case EXP_MNS:
+      result.num = lhs.num - rhs.num;
+      result.type = lhs.type == TKN_CST && rhs.type == TKN_CST ? TKN_CST : TKN_ADR;
+      if (!exp->rhs) {
+        fprintf(stderr, "error: %s : %u,%u: missing right hand side of binary operator '%c'\n",
+           file_name, exp->line, exp->col, exp->symbol);
+        return (struct exp_constant) { .type = TKN_NIL };
+      }
+      break;
+    case EXP_MUL:
+      result.num = lhs.num * rhs.num;
+      result.type = lhs.type == TKN_CST && rhs.type == TKN_CST ? TKN_CST : TKN_ADR;
+      if (!exp->rhs) {
+        fprintf(stderr, "error: %s : %u,%u: missing right hand side of binary operator '%c'\n",
+           file_name, exp->line, exp->col, exp->symbol);
+        return (struct exp_constant) { .type = TKN_NIL };
+      }
+      break;
+    case EXP_ADR:
+      result.num = exp->num;
+      result.type = TKN_ADR;
+      break;
+    case EXP_CST:
+      result.num = exp->num;
+      result.type = TKN_CST;
+      break;
+    default:
+      assert(0);
+      break;
+  }
+  return result;
+}
+
+static b8
+expressions(void) {
+  for (u32 i = 0; i < arraylist_size(tokens); i++) {
+    if (tokens[i].type != TKN_EXP) continue;
+    struct exp_constant result = parse_expression(tokens[i].expression);
+    tokens[i].type = result.type;
+    switch (result.type) {
+      case TKN_CST:
+        tokens[i].byte = result.num % 0x100;
+        tokens[i].addrmd = CST;
+        break;
+      case TKN_ADR:
+        tokens[i].word = result.num % 0x10000;
+        tokens[i].addrmd = tokens[i].word > 0xff ? ADR : ZPG;
+        break;
+      case TKN_NIL:
+        return 0;
+        break;
+      default:
+        assert(0);
+        break;
+    }
+  }
+  return 1;
+}
+
 static b8
 parse(void) {
   u32 code_ptr = ROM_BEGIN;
@@ -537,6 +786,14 @@ parse(void) {
   i32 label;
   for (u32 i = 0; i < arraylist_size(tokens); i++) {
     switch (tokens[i].type) {
+      case TKN_ORG:
+        if (!tokens[i].has_number) {
+          fprintf(stderr, "error: %s : %u,%u: '@org' without an address\n",
+             file_name, tokens[i].string.line, tokens[i].string.col);
+          return 0;
+        }
+        code_ptr = tokens[i].word;
+        break;
       case TKN_CST:
 #if DISASSEMBLE
         if (i == 0 || tokens[i - 1].type != TKN_INS || tokens[i - 1].addrmd != CST) {
@@ -545,8 +802,12 @@ parse(void) {
         }
         printf(" $%.2x", tokens[i].byte);
 #endif
-        bus_write_byte(code_ptr++, tokens[i].byte, 0);
-        break;
+        if (code_ptr < ROM_BEGIN) {
+          fprintf(stderr, "error: %s : %u,%u: trying to write code out of the ROM area (0x8000 to 0xffff)\n",
+             file_name, tokens[i].string.line, tokens[i].string.col);
+          return 0;
+        }
+        bus_write_byte(code_ptr++, tokens[i].byte, 0); break;
       case TKN_ADR:
 #if DISASSEMBLE
         if (i == 0 || tokens[i - 1].type != TKN_INS || tokens[i - 1].addrmd == NOA || tokens[i - 1].addrmd == CST) {
@@ -554,6 +815,11 @@ parse(void) {
           printf("[%.4x]", code_ptr);
         }
 #endif
+        if (code_ptr < ROM_BEGIN) {
+          fprintf(stderr, "error: %s : %u,%u: trying to write code out of the ROM area (0x8000 to 0xffff)\n",
+             file_name, tokens[i].string.line, tokens[i].string.col);
+          return 0;
+        }
         if (tokens[i].addrmd == ZPG) {
           bus_write_byte(code_ptr++, tokens[i].byte, 0);
 #if DISASSEMBLE
@@ -575,6 +841,11 @@ parse(void) {
         }
         printf(" &%.4x", code_ptr - 1);
 #endif
+        if (code_ptr < ROM_BEGIN) {
+          fprintf(stderr, "error: %s : %u,%u: trying to write code out of the ROM area (0x8000 to 0xffff)\n",
+             file_name, tokens[i].string.line, tokens[i].string.col);
+          return 0;
+        }
         bus_write_word(code_ptr, code_ptr - 1, 0);
         code_ptr += 2;
         break;
@@ -583,6 +854,11 @@ parse(void) {
         if (i > 0) putchar('\n');
         printf("[%.4x] %s", code_ptr, cpu_opcode_str(tokens[i].opcode));
 #endif
+        if (code_ptr < ROM_BEGIN) {
+          fprintf(stderr, "error: %s : %u,%u: trying to write code out of the ROM area (0x8000 to 0xffff)\n",
+             file_name, tokens[i].string.line, tokens[i].string.col);
+          return 0;
+        }
         if (i < arraylist_size(tokens) - 1) {
           if (i + 1 < arraylist_size(tokens) - 1 && tokens[i + 2].type == TKN_ADS) {
             tokens[i].addrmd = tokens[i + 2].addrmd;
@@ -590,7 +866,13 @@ parse(void) {
             tokens[i].addrmd = tokens[i + 1].addrmd;
           }
         }
-        bus_write_byte(code_ptr++, cpu_instruction_get(tokens[i].opcode, tokens[i].addrmd), 0);
+        i8 code = cpu_instruction_get(tokens[i].opcode, tokens[i].addrmd);
+        if (code == -1) {
+          tokens[i].addrmd = NOA;
+          code = cpu_instruction_get(tokens[i].opcode, tokens[i].addrmd);
+          assert(code != -1);
+        }
+        bus_write_byte(code_ptr++, code, 0);
         break;
       case TKN_LBL:
 #if DISASSEMBLE
@@ -601,6 +883,11 @@ parse(void) {
           printf("[%.4x]", code_ptr);
         }
 #endif
+        if (code_ptr < ROM_BEGIN) {
+          fprintf(stderr, "error: %s : %u,%u: trying to write code out of the ROM area (0x8000 to 0xffff)\n",
+             file_name, tokens[i].string.line, tokens[i].string.col);
+          return 0;
+        }
         label = get_label(labels, tokens[i].string);
         if (label == -1) {
           fprintf(stderr, "error: %s : %u,%u: label '%.*s' is not defined\n",
@@ -653,6 +940,11 @@ parse(void) {
 #if DISASSEMBLE
         printf("\n[%.4x]", code_ptr);
 #endif
+        if (code_ptr < ROM_BEGIN) {
+          fprintf(stderr, "error: %s : %u,%u: trying to write code out of the ROM area (0x8000 to 0xffff)\n",
+             file_name, tokens[i].string.line, tokens[i].string.col);
+          return 0;
+        }
         for (u32 j = 0; j < tokens[i].string.siz; j++) {
 #if DISASSEMBLE
           printf(" $%.2x", tokens[i].string.buf[j]);
@@ -672,6 +964,7 @@ parse(void) {
 
 b8
 assemble(i8 *name) {
+  assert(predefined_constants_amount == MAX_PREDEF);
   b8 error = 0;
   /* load file */
   file_name = name;
@@ -693,7 +986,7 @@ assemble(i8 *name) {
   fread(source, 1, file_size, file);
   source[file_size] = '\0';
   fclose(file);
-  error = split(source) && gen_structs() && lex() && parse();
+  error = split(source) && gen_structs() && lex() && expressions() && parse();
   free(source);
   if (splits) arraylist_free(splits);
   if (tokens) arraylist_free(tokens);

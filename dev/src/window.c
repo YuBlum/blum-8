@@ -1,3 +1,4 @@
+#include "bus.h"
 #include <os.h>
 #include <cpu.h>
 #include <renderer.h>
@@ -69,6 +70,10 @@ window_loop(void) {
     for (u32 i = 0; i < 128*128; i++) {
       cpu_tick();
       cpu_rsu_tick();
+    }
+    cpu_frame_interrupt();
+    for (u32 i = 0; i < 128*128; i++) {
+      cpu_tick();
     }
     renderer_update();
     glfw.poll_events();

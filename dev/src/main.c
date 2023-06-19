@@ -17,6 +17,8 @@ main(void) {
     os_cleanup();
     return 1;
   }
+  cpu_start_interrupt();
+  bus_save_state();
   if (!window_open()) {
     os_cleanup();
     return 1;
